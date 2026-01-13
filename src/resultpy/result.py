@@ -58,7 +58,7 @@ class Result(Generic[A, E], ABC):
         ...
 
     @staticmethod
-    def ok(value: A) -> "Ok[A, Never]":
+    def ok[T](value: T) -> "Ok[T, Never]":
         """
         Creates successful result.
 
@@ -69,7 +69,7 @@ class Result(Generic[A, E], ABC):
         return Ok(value)
 
     @staticmethod
-    def err(value: E) -> "Err[Never, E]":
+    def err[U](value: U) -> "Err[Never, U]":
         """
         Creates error result.
 
@@ -197,7 +197,6 @@ class Ok(Result[A, E]):
             Success value.
         """
         return self.value
-
 
     def unwrap_or(self, fallback: object) -> A:
         """
@@ -355,7 +354,6 @@ class Err(Result[A, E]):
         """
         raise Exception(message or f"Unwrap called on Err: {self.value!r}")
 
-
     def unwrap_or(self, fallback: B) -> B:
         """
         Unwraps the error value or returns the default value.
@@ -400,7 +398,7 @@ class Err(Result[A, E]):
         return False
 
     def is_err(self) -> bool:
-        return True 
+        return True
 
     def __repr__(self) -> str:
         return f"Err({self.value!r})"
@@ -520,7 +518,10 @@ def tap_async(
 def tap_async(
     result: Result[A, E] | Callable[[A], Coroutine[None, None, None]],
     fn: Callable[[A], Coroutine[None, None, None]] | None = None,
-) -> Coroutine[None, None, Result[A, E]] | Callable[[Result[A, E]], Coroutine[None, None, Result[A, E]]]:
+) -> (
+    Coroutine[None, None, Result[A, E]]
+    | Callable[[Result[A, E]], Coroutine[None, None, Result[A, E]]]
+):
     """
     Runs async side effect on success value, returns result unchanged.
 

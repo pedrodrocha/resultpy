@@ -26,12 +26,3 @@ packages = { find = { where = ["src"] } }
 
 [tool.pyright]
 typeCheckingMode = "strict"
-
-[[tool.pyright.executionEnvironments]]
-root = "tests"
-reportUnknownVariableType = false
-reportUnknownMemberType = false
-reportUnknownArgumentType = false
-reportUnknownLambdaType = false
-reportUnknownParameterType = false
-reportUnusedVariable = false

@@ -4,14 +4,14 @@ import pytest
 
 class TestResult:
     class TestOk:
-        def test_creates_ok_with_value(self):
+        def test_creates_ok_with_value(self) -> None:
             ok = Result.ok(42)
 
             assert ok.status == "ok"
             assert ok.unwrap() == 42
             assert isinstance(ok, Ok)
 
-        def test_creates_ok_with_none(self):
+        def test_creates_ok_with_none(self) -> None:
             ok = Result.ok(None)
 
             assert ok.status == "ok"
@@ -19,26 +19,26 @@ class TestResult:
             assert isinstance(ok, Ok)
 
     class TestErr:
-        def test_creates_err_with_error(self):
+        def test_creates_err_with_error(self) -> None:
             result = Result.err("An error occurred")
             assert result.status == "err"
             assert isinstance(result, Err)
 
-        def test_creates_err_with_error_object(self):
+        def test_creates_err_with_error_object(self) -> None:
             error = ValueError("Invalid value")
             result = Result.err(error)
             assert result.status == "err"
             assert isinstance(result, Err)
 
     class TestMapErr:
-        def test_transforms_err_value(self):
+        def test_transforms_err_value(self) -> None:
             err = Result.err("Not found")
             new_err = err.mapErr(lambda e: f"Error: {e}")
 
             assert new_err == Err("Error: Not found")
             assert isinstance(new_err, Err)
 
-        def test_transforms_with_error_object(self):
+        def test_transforms_with_error_object(self) -> None:
             err = Result.err(ValueError("Invalid input"))
             new_err = err.mapErr(lambda e: RuntimeError(f"Wrapped: {e}"))
 
@@ -46,7 +46,7 @@ class TestResult:
             assert isinstance(new_err.value, RuntimeError)
             assert str(new_err.value) == "Wrapped: Invalid input"
 
-        def test_passes_through_ok(self):
+        def test_passes_through_ok(self) -> None:
             ok = Result.ok(10)
             mapped = ok.mapErr(lambda e: f"Error: {e}")
 
@@ -55,7 +55,7 @@ class TestResult:
             assert mapped.unwrap() == 10
 
     class TestMap:
-        def test_transforms_ok_value(self):
+        def test_transforms_ok_value(self) -> None:
             ok = Result.ok(5)
             new_ok = ok.map(lambda x: x * 2)
 
@@ -65,14 +65,14 @@ class TestResult:
             assert new_ok == Ok(10)
             assert isinstance(new_ok, Ok)
 
-        def test_passes_through_err(self):
+        def test_passes_through_err(self) -> None:
             result = Result.err("fail")
             mapped = result.map(lambda x: x * 3)
 
             assert result.is_err() is True
             assert isinstance(mapped, Err)
 
-        def test_method_chaining(self):
+        def test_method_chaining(self) -> None:
             def double(x: int) -> int:
                 return x * 2
 
@@ -87,50 +87,50 @@ class TestResult:
             assert result.unwrap() == "Result: 11"  # (5 * 2) + 1 = 11
 
     class TestIsOk:
-        def test_returns_true_for_ok(self):
+        def test_returns_true_for_ok(self) -> None:
             ok = Result.ok(100)
             assert ok.is_ok() is True
 
-        def test_returns_false_for_err(self):
+        def test_returns_false_for_err(self) -> None:
             err = Result.err("Error")
             assert err.is_ok() is False
 
     class TestIsErr:
-        def test_returns_true_for_err(self):
+        def test_returns_true_for_err(self) -> None:
             err = Result.err("Error")
             assert err.is_err() is True
 
-        def test_returns_false_for_ok(self):
+        def test_returns_false_for_ok(self) -> None:
             ok = Result.ok(100)
             assert ok.is_err() is False
 
     class TestUnwrap:
-        def test_returns_value_for_ok(self):
+        def test_returns_value_for_ok(self) -> None:
             ok = Result.ok(100)
             assert ok.unwrap() == 100
 
-        def test_raises_exception_for_err(self):
+        def test_raises_exception_for_err(self) -> None:
             err = Result.err("Error")
             with pytest.raises(Exception):
                 err.unwrap()
 
-        def test_raises_exception_for_err_with_message(self):
+        def test_raises_exception_for_err_with_message(self) -> None:
             err = Result.err("Error")
             with pytest.raises(Exception, match="Custom message"):
                 err.unwrap("Custom message")
 
     class TestUnwrapOr:
 
-        def test_returns_value_for_ok(self):
+        def test_returns_value_for_ok(self) -> None:
             ok = Result.ok(100)
             assert ok.unwrap_or(0) == 100
 
-        def test_returns_fallback_for_err(self):
+        def test_returns_fallback_for_err(self) -> None:
             err = Result.err("Error")
             assert err.unwrap_or(0) == 0
 
     class TestTap:
-        def test_runs_side_effect_on_ok(self):
+        def test_runs_side_effect_on_ok(self) -> None:
             captured = 0
 
             def capture(x: int) -> None:
@@ -141,19 +141,19 @@ class TestResult:
             assert captured == 100
             assert result.unwrap() == 100
 
-        def test_skips_side_effect_on_err(self):
+        def test_skips_side_effect_on_err(self) -> None:
             captured = 0
 
             def capture(x: int) -> None:
                 nonlocal captured
                 captured = x
 
-            result = Result.err("Error").tap(capture)
+            _result = Result.err("Error").tap(capture)
             assert captured == 0
 
     class TestTapAsync:
         @pytest.mark.asyncio
-        async def test_runs_side_effect_on_ok(self):
+        async def test_runs_side_effect_on_ok(self) -> None:
             captured = 0
 
             async def capture(x: int) -> None:
@@ -165,37 +165,37 @@ class TestResult:
             assert result.unwrap() == 100
 
     class TestStandaloneMap:
-        def test_data_first_transforms_ok_value(self):
+        def test_data_first_transforms_ok_value(self) -> None:
             result = Result.ok(5)
             mapped = map(result, lambda x: x * 2)
             assert mapped.unwrap() == 10
 
-        def test_data_last_transforms_ok_value(self):
+        def test_data_last_transforms_ok_value(self) -> None:
             def double(x: int) -> int:
                 return x * 2
 
-            mapped = map(double)
-            result = mapped(Result.ok(6))
+            mapper = map(double)
+            result = mapper(Result.ok(6))
             assert result.unwrap() == 12
 
     class TestStandaloneMapErr:
-        def test_data_first_transforms_err_value(self):
+        def test_data_first_transforms_err_value(self) -> None:
             result = Result.err("Error")
             mapped = map_err(result, lambda e: f"Error: {e}")
             assert mapped == Err("Error: Error")
             assert isinstance(mapped, Err)
 
-        def test_data_last_transforms_err_value(self):
+        def test_data_last_transforms_err_value(self) -> None:
             def error_to_string(e: str) -> str:
                 return f"Error: {e}"
 
-            mapped = map_err(error_to_string)
-            result = mapped(Result.err("Error"))
+            mapper = map_err(error_to_string)
+            result = mapper(Result.err("Error"))
             assert result == Err("Error: Error")
             assert isinstance(result, Err)
 
     class TestStandaloneTap:
-        def test_data_first_runs_side_effect_on_ok(self):
+        def test_data_first_runs_side_effect_on_ok(self) -> None:
             captured = 0
 
             def capture(x: int) -> None:
@@ -206,7 +206,7 @@ class TestResult:
             assert captured == 100
             assert result.unwrap() == 100
 
-        def test_data_first_skips_side_effect_on_err(self):
+        def test_data_first_skips_side_effect_on_err(self) -> None:
             captured = 0
 
             def capture(x: int) -> None:
@@ -218,7 +218,7 @@ class TestResult:
             assert result == Err("Error")
             assert isinstance(result, Err)
 
-        def test_data_last_runs_side_effect_on_ok(self):
+        def test_data_last_runs_side_effect_on_ok(self) -> None:
             captured = 0
 
             def capture(x: int) -> None:
@@ -230,7 +230,7 @@ class TestResult:
             assert captured == 100
             assert result.unwrap() == 100
 
-        def test_data_last_skips_side_effect_on_err(self):
+        def test_data_last_skips_side_effect_on_err(self) -> None:
             captured = 0
 
             def capture(x: int) -> None:
@@ -246,7 +246,7 @@ class TestResult:
 
     class TestStandaloneTapAsync:
         @pytest.mark.asyncio
-        async def test_data_first_runs_side_effect_on_ok(self):
+        async def test_data_first_runs_side_effect_on_ok(self) -> None:
             captured = 0
 
             async def capture(x: int) -> None:
@@ -258,18 +258,18 @@ class TestResult:
             assert result.unwrap() == 100
 
         @pytest.mark.asyncio
-        async def test_data_first_skips_side_effect_on_err(self):
+        async def test_data_first_skips_side_effect_on_err(self) -> None:
             captured = 0
 
             async def capture(x: int) -> None:
                 nonlocal captured
                 captured = x
 
-            result = await tap_async(Result.err("Error"), capture)
+            _result = await tap_async(Result.err("Error"), capture)
             assert captured == 0
 
         @pytest.mark.asyncio
-        async def test_data_last_runs_side_effect_on_ok(self):
+        async def test_data_last_runs_side_effect_on_ok(self) -> None:
             captured = 0
 
             async def capture(x: int) -> None:
@@ -282,7 +282,7 @@ class TestResult:
             assert result.unwrap() == 100
 
         @pytest.mark.asyncio
-        async def test_data_last_skips_side_effect_on_err(self):
+        async def test_data_last_skips_side_effect_on_err(self) -> None:
             captured = 0
 
             async def capture(x: int) -> None:
@@ -291,20 +291,20 @@ class TestResult:
 
             tapper = tap_async(capture)
             err: Err[int, str] = Err("Error")
-            result = await tapper(err)
+            _result = await tapper(err)
             assert captured == 0
 
     class TestStandaloneUnwrap:
-        def test_returns_value_for_ok(self):
+        def test_returns_value_for_ok(self) -> None:
             result = Result.ok(42)
             assert unwrap(result) == 42
 
-        def test_raises_exception_for_err(self):
+        def test_raises_exception_for_err(self) -> None:
             result = Result.err("Error")
             with pytest.raises(Exception):
                 unwrap(result)
 
-        def test_raises_exception_with_custom_message(self):
+        def test_raises_exception_with_custom_message(self) -> None:
             result = Result.err("Error")
             with pytest.raises(Exception, match="Custom message"):
                 unwrap(result, "Custom message")
