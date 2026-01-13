@@ -1,5 +1,3 @@
-
-
 from resultpy import Result, Ok, Err
 
 
@@ -32,3 +30,21 @@ class TestResult:
             assert result.status == "err"
             assert result.value == error
             assert isinstance(result, Err)
+
+    class TestIsOk:
+        def test_returns_true_for_ok(self):
+            ok = Result.ok(100)
+            assert ok.is_ok() is True
+
+        def test_returns_false_for_err(self):
+            err = Result.err("Error")
+            assert err.is_ok() is False
+
+    class TestIsErr:
+        def test_returns_true_for_err(self):
+            err = Result.err("Error")
+            assert err.is_err() is True
+
+        def test_returns_false_for_ok(self):
+            ok = Result.ok(100)
+            assert ok.is_err() is False
