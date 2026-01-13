@@ -15,11 +15,24 @@ from .result import (
     match,
 )
 
+from .safe import (
+    safe,
+    safe_async,
+    UnhandledException,
+    SafeConfig,
+    SafeConfigAsync,
+    SafeOptions,
+    RetryConfig,
+    RetryConfigAsync,
+)
+
 __all__ = [
+    # Result types
     "Err",
     "Ok",
     "Result",
     "Matcher",
+    # Result functions
     "map",
     "map_err",
     "tap",
@@ -28,4 +41,13 @@ __all__ = [
     "and_then",
     "and_then_async",
     "match",
+    # Safe functions
+    "safe",
+    "safe_async",
+    "UnhandledException",
+    "SafeConfig",
+    "SafeConfigAsync",
+    "SafeOptions",
+    "RetryConfig",
+    "RetryConfigAsync",
 ]
