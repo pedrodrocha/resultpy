@@ -1,4 +1,14 @@
-from typing import TypeVar, Generic, Literal, Callable, cast, Never, overload
+from typing import (
+    TypeVar,
+    Generic,
+    Literal,
+    Callable,
+    cast,
+    Never,
+    overload,
+    Optional,
+    Union,
+)
 from abc import ABC, abstractmethod
 
 """
@@ -76,6 +86,30 @@ class Result(Generic[A, E], ABC):
     @abstractmethod
     def is_err(self) -> bool:
         """Returns True if this is an Err result."""
+        ...
+
+    @abstractmethod
+    def unwrap(self, message: Optional[str] = None) -> Union[A, object] | Never:
+        """
+        Unwraps the success value.
+
+        Returns
+        -------
+        A
+            Success value.
+        """
+        ...
+
+    @abstractmethod
+    def unwrap_or(self, fallback: B) -> Union[A, B]:
+        """
+        Unwraps the success value or returns the default value.
+
+        Returns
+        -------
+        A
+            Success value or default value.
+        """
         ...
 
 
@@ -160,6 +194,39 @@ class Ok(Result[A, E]):
         # SAFETY: E is phantom on Ok (not used at runtime).
         return cast("Ok[A, F]", self)
 
+    def unwrap(self, message: Optional[str] = None) -> A:
+        """
+        Unwraps the success value.
+
+        Returns
+        -------
+        A
+            Success value.
+        """
+        return self.value
+
+    def unwrap_err(self, message: Optional[str] = None) -> Never:
+        """
+        Throws because Ok has no error value.
+
+        Raises
+        ------
+        Exception
+            Always raises.
+        """
+        raise Exception(message or f"Unwrap_err called on Ok: {self.value!r}")
+
+    def unwrap_or(self, fallback: object) -> A:
+        """
+        Unwraps the success value or returns the default value.
+
+        Returns
+        -------
+        A
+            Success value or default value.
+        """
+        return self.value
+
     def is_ok(self) -> bool:
         return True
 
@@ -176,6 +243,9 @@ class Ok(Result[A, E]):
 
     def __hash__(self) -> int:
         return hash(("ok", self.value))
+
+    def __str__(self) -> str:
+        return f"Ok({self.value!r})"
 
 
 class Err(Result[A, E]):
@@ -259,6 +329,39 @@ class Err(Result[A, E]):
         """
         return Err(fn(self.value))
 
+    def unwrap(self, message: Optional[str] = None) -> Never:
+        """
+        Throws because Err has no success value.
+
+        Raises
+        ------
+        Exception
+            Always raises.
+        """
+        raise Exception(message or f"Unwrap called on Err: {self.value!r}")
+
+    def unwrap_err(self, message: Optional[str] = None) -> E:
+        """
+        Unwraps the error value.
+
+        Returns
+        -------
+        E
+            Error value.
+        """
+        return self.value
+
+    def unwrap_or(self, fallback: B) -> B:
+        """
+        Unwraps the error value or returns the default value.
+
+        Returns
+        -------
+        B
+            Error value or default value.
+        """
+        return fallback
+
     def is_ok(self) -> bool:
         return False
 
@@ -275,6 +378,9 @@ class Err(Result[A, E]):
 
     def __hash__(self) -> int:
         return hash(("err", self.value))
+
+    def __str__(self) -> str:
+        return f"Err({self.value!r})"
 
 
 # Module-level dual functions for map and map_err
