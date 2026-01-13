@@ -192,16 +192,6 @@ class Ok(Result[A, E]):
         """
         return self.value
 
-    def unwrap_err(self, message: Optional[str] = None) -> Never:
-        """
-        Throws because Ok has no error value.
-
-        Raises
-        ------
-        Exception
-            Always raises.
-        """
-        raise Exception(message or f"Unwrap_err called on Ok: {self.value!r}")
 
     def unwrap_or(self, fallback: object) -> A:
         """
@@ -358,16 +348,6 @@ class Err(Result[A, E]):
         """
         raise Exception(message or f"Unwrap called on Err: {self.value!r}")
 
-    def unwrap_err(self, message: Optional[str] = None) -> E:
-        """
-        Unwraps the error value.
-
-        Returns
-        -------
-        E
-            Error value.
-        """
-        return self.value
 
     def unwrap_or(self, fallback: B) -> B:
         """

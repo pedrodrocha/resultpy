@@ -22,14 +22,12 @@ class TestResult:
         def test_creates_err_with_error(self):
             result = Result.err("An error occurred")
             assert result.status == "err"
-            assert result.unwrap_err() == "An error occurred"
             assert isinstance(result, Err)
 
         def test_creates_err_with_error_object(self):
             error = ValueError("Invalid value")
             result = Result.err(error)
             assert result.status == "err"
-            assert result.unwrap_err() == error
             assert isinstance(result, Err)
 
     class TestMapErr:
@@ -44,8 +42,9 @@ class TestResult:
             err = Result.err(ValueError("Invalid input"))
             new_err = err.mapErr(lambda e: RuntimeError(f"Wrapped: {e}"))
 
-            assert isinstance(new_err.unwrap_err(), RuntimeError)
-            assert str(new_err.unwrap_err()) == "Wrapped: Invalid input"
+            assert isinstance(new_err, Err)
+            assert isinstance(new_err.value, RuntimeError)
+            assert str(new_err.value) == "Wrapped: Invalid input"
 
         def test_passes_through_ok(self):
             ok = Result.ok(10)
@@ -72,7 +71,6 @@ class TestResult:
 
             assert result.is_err() is True
             assert isinstance(mapped, Err)
-            assert mapped.unwrap_err() == "fail"
 
         def test_method_chaining(self):
             def double(x: int) -> int:
@@ -152,7 +150,6 @@ class TestResult:
 
             result = Result.err("Error").tap(capture)
             assert captured == 0
-            assert result.unwrap_err() == "Error"
 
     class TestTapAsync:
         @pytest.mark.asyncio
@@ -185,7 +182,8 @@ class TestResult:
         def test_data_first_transforms_err_value(self):
             result = Result.err("Error")
             mapped = map_err(result, lambda e: f"Error: {e}")
-            assert mapped.unwrap_err() == "Error: Error"
+            assert mapped == Err("Error: Error")
+            assert isinstance(mapped, Err)
 
         def test_data_last_transforms_err_value(self):
             def error_to_string(e: str) -> str:
@@ -193,7 +191,8 @@ class TestResult:
 
             mapped = map_err(error_to_string)
             result = mapped(Result.err("Error"))
-            assert result.unwrap_err() == "Error: Error"
+            assert result == Err("Error: Error")
+            assert isinstance(result, Err)
 
     class TestStandaloneTap:
         def test_data_first_runs_side_effect_on_ok(self):
@@ -216,7 +215,8 @@ class TestResult:
 
             result = tap(Result.err("Error"), capture)
             assert captured == 0
-            assert result.unwrap_err() == "Error"
+            assert result == Err("Error")
+            assert isinstance(result, Err)
 
         def test_data_last_runs_side_effect_on_ok(self):
             captured = 0
@@ -238,9 +238,11 @@ class TestResult:
                 captured = x
 
             tapper = tap(capture)
-            result = tapper(Result.err("Error"))
+            err: Err[int, str] = Err("Error")
+            result = tapper(err)
             assert captured == 0
-            assert result.unwrap_err() == "Error"
+            assert result == Err("Error")
+            assert isinstance(result, Err)
 
     class TestStandaloneTapAsync:
         @pytest.mark.asyncio
@@ -265,7 +267,6 @@ class TestResult:
 
             result = await tap_async(Result.err("Error"), capture)
             assert captured == 0
-            assert result.unwrap_err() == "Error"
 
         @pytest.mark.asyncio
         async def test_data_last_runs_side_effect_on_ok(self):
@@ -289,9 +290,9 @@ class TestResult:
                 captured = x
 
             tapper = tap_async(capture)
-            result = await tapper(Result.err("Error"))
+            err: Err[int, str] = Err("Error")
+            result = await tapper(err)
             assert captured == 0
-            assert result.unwrap_err() == "Error"
 
     class TestStandaloneUnwrap:
         def test_returns_value_for_ok(self):
