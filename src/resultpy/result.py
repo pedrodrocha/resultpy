@@ -89,7 +89,7 @@ class Result(Generic[A, E], ABC):
     def map(self, fn: Callable[[A], B]) -> "Result[B, E]": ...
 
     @abstractmethod
-    def mapErr(self, fn: Callable[[E], F]) -> "Result[A, F]": ...
+    def map_err(self, fn: Callable[[E], F]) -> "Result[A, F]": ...
 
     @abstractmethod
     def unwrap(self, message: Optional[str] = None) -> Union[A, object] | Never: ...
@@ -156,7 +156,7 @@ class Ok(Result[A, E]):
         """
         return Ok(fn(self.value))
 
-    def mapErr(self, fn: Callable[[E], F]) -> "Ok[A, F]":
+    def map_err(self, fn: Callable[[E], F]) -> "Ok[A, F]":
         """
         No-op for Ok. Returns self with new phantom error type.
 
@@ -176,7 +176,7 @@ class Ok(Result[A, E]):
         Examples
         --------
         >>> ok = Ok(2)
-        >>> ok.mapErr(lambda e: str(e))  # Type changes E -> str
+        >>> ok.map_err(lambda e: str(e))  # Type changes E -> str
         Ok(2)
 
         Notes
@@ -345,7 +345,7 @@ class Err(Result[A, E]):
         # SAFETY: A is phantom on Err (not used at runtime).
         return cast("Err[B, E]", self)
 
-    def mapErr(self, fn: Callable[[E], F]) -> "Err[A, F]":
+    def map_err(self, fn: Callable[[E], F]) -> "Err[A, F]":
         """
         Transforms error value.
 
@@ -362,7 +362,7 @@ class Err(Result[A, E]):
         Examples
         --------
         >>> err = Err("error")
-        >>> err.mapErr(lambda e: e.upper())
+        >>> err.map_err(lambda e: e.upper())
         Err("ERROR")
         """
         return Err(fn(self.value))
@@ -501,8 +501,8 @@ def map_err(
     """
     if fn is None:
         _fn = cast(Callable[[E], F], result)
-        return lambda r: r.mapErr(_fn)
-    return cast(Result[A, E], result).mapErr(fn)
+        return lambda r: r.map_err(_fn)
+    return cast(Result[A, E], result).map_err(fn)
 
 
 @overload

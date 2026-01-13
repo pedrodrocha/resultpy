@@ -33,14 +33,14 @@ class TestResult:
     class TestMapErr:
         def test_transforms_err_value(self) -> None:
             err = Result.err("Not found")
-            new_err = err.mapErr(lambda e: f"Error: {e}")
+            new_err = err.map_err(lambda e: f"Error: {e}")
 
             assert new_err == Err("Error: Not found")
             assert isinstance(new_err, Err)
 
         def test_transforms_with_error_object(self) -> None:
             err = Result.err(ValueError("Invalid input"))
-            new_err = err.mapErr(lambda e: RuntimeError(f"Wrapped: {e}"))
+            new_err = err.map_err(lambda e: RuntimeError(f"Wrapped: {e}"))
 
             assert isinstance(new_err, Err)
             assert isinstance(new_err.value, RuntimeError)
@@ -48,7 +48,7 @@ class TestResult:
 
         def test_passes_through_ok(self) -> None:
             ok = Result.ok(10)
-            mapped = ok.mapErr(lambda e: f"Error: {e}")
+            mapped = ok.map_err(lambda e: f"Error: {e}")
 
             assert ok.is_ok() is True
             assert isinstance(mapped, Ok)
