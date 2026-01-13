@@ -430,10 +430,9 @@ class Err(Result[A, E]):
         return f"Err({self.value!r})"
 
 
-# Module-level dual functions for map and map_err
-# These support both DataFirst and DataLast calling patterns:
-#   map(result, fn)  -> DataFirst
-#   map(fn)(result)  -> DataLast
+# ------------------------------------------------------------
+# Module-level methods
+# ------------------------------------------------------------
 @overload
 def map(result: Result[A, E], fn: Callable[[A], B]) -> Result[B, E]: ...
 
@@ -480,3 +479,84 @@ def map_err(result, fn=None):
     if fn is None:
         return lambda r: r.mapErr(result)
     return result.mapErr(fn)
+
+
+@overload
+def tap(result: Result[A, E], fn: Callable[[A], None]) -> Result[A, E]: ...
+
+
+@overload
+def tap(result: Callable[[A], None]) -> Callable[[Result[A, E]], Result[A, E]]: ...
+
+
+def tap(result, fn=None):
+    """
+    Runs side effect on success value, returns result unchanged.
+
+    Supports both DataFirst and DataLast calling patterns.
+
+    Examples
+    --------
+    >>> tap(Ok(2), print)  # prints 2, returns Ok(2) - DataFirst
+    >>> tap(print)(Ok(2))  # prints 2, returns Ok(2) - DataLast
+    """
+    if fn is None:
+        return lambda r: r.tap(result)
+    return result.tap(fn)
+
+
+@overload
+def tap_async(
+    result: Result[A, E], fn: Callable[[A], Coroutine[None, None, None]]
+) -> Coroutine[None, None, Result[A, E]]: ...
+
+
+@overload
+def tap_async(
+    result: Callable[[A], Coroutine[None, None, None]],
+) -> Callable[[Result[A, E]], Coroutine[None, None, Result[A, E]]]: ...
+
+
+def tap_async(result, fn=None):
+    """
+    Runs async side effect on success value, returns result unchanged.
+
+    Supports both DataFirst and DataLast calling patterns.
+
+    Examples
+    --------
+    >>> await tap_async(Ok(2), async_log)  # DataFirst
+    >>> await tap_async(async_log)(Ok(2))  # DataLast
+    """
+    if fn is None:
+        return lambda r: r.tap_async(result)
+    return result.tap_async(fn)
+
+
+def unwrap(result: Result[A, E], message: Optional[str] = None) -> A:
+    """
+    Extracts the success value or raises an exception.
+
+    Parameters
+    ----------
+    result : Result[A, E]
+        The result to unwrap.
+    message : Optional[str]
+        Custom error message if unwrapping fails.
+
+    Returns
+    -------
+    A
+        The success value.
+
+    Raises
+    ------
+    Exception
+        If the result is an Err.
+
+    Examples
+    --------
+    >>> unwrap(Ok(42))  # 42
+    >>> unwrap(Err("fail"))  # raises Exception
+    """
+    return cast(A, result.unwrap(message))

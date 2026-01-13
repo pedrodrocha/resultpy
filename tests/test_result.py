@@ -1,4 +1,4 @@
-from resultpy import Result, Ok, Err, map
+from resultpy import Result, Ok, Err, map, map_err, tap, tap_async, unwrap
 import pytest
 
 
@@ -73,20 +73,6 @@ class TestResult:
             assert result.is_err() is True
             assert isinstance(mapped, Err)
             assert mapped.unwrap_err() == "fail"
-
-        def test_standalone_function_data_first_pattern(self):
-            result = Result.ok(2)
-            mapped_result = map(result, lambda x: x * 3)
-            assert mapped_result.unwrap() == 6
-
-        def test_standalone_function_data_last_pattern(self):
-            def double(x: int) -> int:
-                return x * 2
-
-            doubled = map(double)
-
-            result = doubled(Result.ok(6))
-            assert result.unwrap() == 12
 
         def test_method_chaining(self):
             def double(x: int) -> int:
@@ -180,3 +166,144 @@ class TestResult:
             result = await Result.ok(100).tap_async(capture)
             assert captured == 100
             assert result.unwrap() == 100
+
+    class TestStandaloneMap:
+        def test_data_first_transforms_ok_value(self):
+            result = Result.ok(5)
+            mapped = map(result, lambda x: x * 2)
+            assert mapped.unwrap() == 10
+
+        def test_data_last_transforms_ok_value(self):
+            def double(x: int) -> int:
+                return x * 2
+
+            mapped = map(double)
+            result = mapped(Result.ok(6))
+            assert result.unwrap() == 12
+
+    class TestStandaloneMapErr:
+        def test_data_first_transforms_err_value(self):
+            result = Result.err("Error")
+            mapped = map_err(result, lambda e: f"Error: {e}")
+            assert mapped.unwrap_err() == "Error: Error"
+
+        def test_data_last_transforms_err_value(self):
+            def error_to_string(e: str) -> str:
+                return f"Error: {e}"
+
+            mapped = map_err(error_to_string)
+            result = mapped(Result.err("Error"))
+            assert result.unwrap_err() == "Error: Error"
+
+    class TestStandaloneTap:
+        def test_data_first_runs_side_effect_on_ok(self):
+            captured = 0
+
+            def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            result = tap(Result.ok(100), capture)
+            assert captured == 100
+            assert result.unwrap() == 100
+
+        def test_data_first_skips_side_effect_on_err(self):
+            captured = 0
+
+            def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            result = tap(Result.err("Error"), capture)
+            assert captured == 0
+            assert result.unwrap_err() == "Error"
+
+        def test_data_last_runs_side_effect_on_ok(self):
+            captured = 0
+
+            def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            tapper = tap(capture)
+            result = tapper(Result.ok(100))
+            assert captured == 100
+            assert result.unwrap() == 100
+
+        def test_data_last_skips_side_effect_on_err(self):
+            captured = 0
+
+            def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            tapper = tap(capture)
+            result = tapper(Result.err("Error"))
+            assert captured == 0
+            assert result.unwrap_err() == "Error"
+
+    class TestStandaloneTapAsync:
+        @pytest.mark.asyncio
+        async def test_data_first_runs_side_effect_on_ok(self):
+            captured = 0
+
+            async def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            result = await tap_async(Result.ok(100), capture)
+            assert captured == 100
+            assert result.unwrap() == 100
+
+        @pytest.mark.asyncio
+        async def test_data_first_skips_side_effect_on_err(self):
+            captured = 0
+
+            async def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            result = await tap_async(Result.err("Error"), capture)
+            assert captured == 0
+            assert result.unwrap_err() == "Error"
+
+        @pytest.mark.asyncio
+        async def test_data_last_runs_side_effect_on_ok(self):
+            captured = 0
+
+            async def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            tapper = tap_async(capture)
+            result = await tapper(Result.ok(100))
+            assert captured == 100
+            assert result.unwrap() == 100
+
+        @pytest.mark.asyncio
+        async def test_data_last_skips_side_effect_on_err(self):
+            captured = 0
+
+            async def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            tapper = tap_async(capture)
+            result = await tapper(Result.err("Error"))
+            assert captured == 0
+            assert result.unwrap_err() == "Error"
+
+    class TestStandaloneUnwrap:
+        def test_returns_value_for_ok(self):
+            result = Result.ok(42)
+            assert unwrap(result) == 42
+
+        def test_raises_exception_for_err(self):
+            result = Result.err("Error")
+            with pytest.raises(Exception):
+                unwrap(result)
+
+        def test_raises_exception_with_custom_message(self):
+            result = Result.err("Error")
+            with pytest.raises(Exception, match="Custom message"):
+                unwrap(result, "Custom message")
