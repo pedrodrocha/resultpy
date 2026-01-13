@@ -108,6 +108,14 @@ class Result(Generic[A, E], ABC):
         self, fn: Callable[[A], Coroutine[None, None, None]]
     ) -> "Result[A, E]": ...
 
+    @abstractmethod
+    def and_then(self, fn: Callable[[A], "Result[B, E]"]) -> "Result[B, E]": ...
+
+    @abstractmethod
+    async def and_then_async(
+        self, fn: Callable[[A], Coroutine[None, None, "Result[B, E]"]]
+    ) -> "Result[B, E]": ...
+
 
 class Ok(Result[A, E]):
     """
@@ -282,6 +290,32 @@ class Ok(Result[A, E]):
         Err("Error")
         """
         return fn(self.value)
+
+    async def and_then_async(
+        self, fn: Callable[[A], Coroutine[None, None, Result[B, E]]]
+    ) -> "Result[B, E]":
+        """
+        Chains another result-producing function.
+
+        Parameters
+        ----------
+        fn : Callable[[A], Coroutine[None, None, Result[B, E]]]
+            Result-producing function.
+
+        Returns
+        -------
+        Result[B, E]
+            Result of the chained function.
+
+        Examples
+        --------
+        >>> result = Ok(2).and_then_async(lambda x: asyncio.sleep(1))
+        Ok(2)
+
+        >>> result = Ok(2).and_then_async(lambda x: Err("Error"))
+        Err("Error")
+        """
+        return await fn(self.value)
 
     def is_ok(self) -> bool:
         return True
@@ -460,6 +494,14 @@ class Err(Result[A, E]):
         return self
 
     def and_then(self, fn: Callable[[A], Result[B, E]]) -> "Err[A, E]":
+        """
+        No-op for Err. Returns self.
+        """
+        return cast("Err[A, E]", self)
+
+    async def and_then_async(
+        self, fn: Callable[[A], Coroutine[None, None, Result[B, E]]]
+    ) -> "Err[A, E]":
         """
         No-op for Err. Returns self.
         """

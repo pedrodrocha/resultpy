@@ -343,6 +343,46 @@ class TestResult:
             )  # Function should NOT be called when starting with Err
             assert result.is_err()
 
+    class TestAndThenAsync:
+        @pytest.mark.asyncio
+        async def test_chains_ok_to_ok(self) -> None:
+            ok: Ok[int, str] = Ok(2)
+
+            async def async_triple(x: int) -> Ok[int, str]:
+                return Ok(x * 3)
+
+            result = await ok.and_then_async(async_triple)
+            assert result.unwrap() == 6
+
+        @pytest.mark.asyncio
+        async def test_chains_ok_to_err(self) -> None:
+            ok: Ok[int, str] = Ok(2)
+
+            async def async_to_err(x: int) -> Err[int, str]:
+                return Err("Error")
+
+            result = await ok.and_then_async(async_to_err)
+
+            assert result.is_err()
+            assert isinstance(result, Err)
+            assert result.value == "Error"
+
+        @pytest.mark.asyncio
+        async def test_short_circuits_on_err(self) -> None:
+            called = False
+
+            async def side_effect(x: int) -> Result[int, str]:
+                nonlocal called
+                called = True
+                return Ok(x * 2)
+
+            err: Err[int, str] = Err("Initial Error")
+            result = await err.and_then_async(side_effect)
+            assert (
+                called is False
+            )  # Function should NOT be called when starting with Err
+            assert result.is_err()
+
     class TestUnwrapErr:
         def test_returns_error_for_err(self) -> None:
             err: Err[int, str] = Err("Error message")
