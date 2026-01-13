@@ -11,7 +11,6 @@ from typing import (
     Coroutine,
 )
 from abc import ABC, abstractmethod
-import asyncio
 
 """
 Type variable for a generic type A
@@ -236,14 +235,14 @@ class Ok(Result[A, E]):
         self, fn: Callable[[A], Coroutine[None, None, None]]
     ) -> "Ok[A, E]":
         """
-        Runs side effect, returns self.
+        Runs async side effect, returns self.
 
         Parameters
         ----------
         fn : Callable[[A], Coroutine[None, None, None]]
-            Side effect function.
+            Async side effect function.
         """
-        asyncio.run(fn(self.value))
+        await fn(self.value)
         return self
 
     def is_ok(self) -> bool:

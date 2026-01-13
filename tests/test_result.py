@@ -144,3 +144,39 @@ class TestResult:
         def test_returns_fallback_for_err(self):
             err = Result.err("Error")
             assert err.unwrap_or(0) == 0
+
+    class TestTap:
+        def test_runs_side_effect_on_ok(self):
+            captured = 0
+
+            def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            result = Result.ok(100).tap(capture)
+            assert captured == 100
+            assert result.unwrap() == 100
+
+        def test_skips_side_effect_on_err(self):
+            captured = 0
+
+            def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            result = Result.err("Error").tap(capture)
+            assert captured == 0
+            assert result.unwrap_err() == "Error"
+
+    class TestTapAsync:
+        @pytest.mark.asyncio
+        async def test_runs_side_effect_on_ok(self):
+            captured = 0
+
+            async def capture(x: int) -> None:
+                nonlocal captured
+                captured = x
+
+            result = await Result.ok(100).tap_async(capture)
+            assert captured == 100
+            assert result.unwrap() == 100
