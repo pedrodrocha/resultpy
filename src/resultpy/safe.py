@@ -9,8 +9,6 @@ E = TypeVar("E")
 
 
 class UnhandledException(Exception):
-    """Wraps an unhandled exception from safe/safe_async."""
-
     def __init__(self, cause: Exception) -> None:
         self.cause = cause
         super().__init__(str(cause))
