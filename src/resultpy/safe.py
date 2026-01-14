@@ -3,21 +3,10 @@ from typing_extensions import TypedDict
 import asyncio
 
 from .result import Result, Ok, Err
+from .error import UnhandledException
 
 A = TypeVar("A")
 E = TypeVar("E")
-
-
-class UnhandledException(Exception):
-    def __init__(self, cause: Exception) -> None:
-        self.cause = cause
-        super().__init__(str(cause))
-
-    def __repr__(self) -> str:
-        return f"UnhandledException({self.cause!r})"
-
-    def __str__(self) -> str:
-        return f"UnhandledException({self.cause!r})"
 
 
 class RetryConfig(TypedDict, total=False):

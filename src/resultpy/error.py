@@ -15,6 +15,9 @@ E = TypeVar("E", bound="TaggedError")
 class TaggedError(ABC, Exception):
     __slots__ = ("_message", "_cause")
 
+    _message: str
+    _cause: Optional[Exception]
+
     @property
     @abstractmethod
     def _tag(self) -> str: ...
@@ -129,3 +132,25 @@ class TaggedError(ABC, Exception):
         if handler is None:
             return otherwise(error)
         return handler(error)
+
+
+class UnhandledException(TaggedError):
+    @property
+    def _tag(self) -> str:
+        return "UnhandledException"
+
+    @property
+    def cause(self) -> Exception:
+        # _cause is always set in __init__, so we can safely cast
+        assert self._cause is not None
+        return self._cause
+
+    def __init__(self, cause: Exception) -> None:
+        message = f"Unhandled exception: {cause}"
+        super().__init__(message, cause)
+
+    def __str__(self) -> str:
+        return self._message
+
+    def __repr__(self) -> str:
+        return f"UnhandledException({self._cause!r})"

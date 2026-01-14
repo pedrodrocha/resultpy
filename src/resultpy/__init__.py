@@ -18,13 +18,14 @@ from .result import (
 from .safe import (
     safe,
     safe_async,
-    UnhandledException,
     SafeConfig,
     SafeConfigAsync,
     SafeOptions,
     RetryConfig,
     RetryConfigAsync,
 )
+
+from .error import TaggedError, UnhandledException
 
 __all__ = [
     # Result types
@@ -50,4 +51,7 @@ __all__ = [
     "SafeOptions",
     "RetryConfig",
     "RetryConfigAsync",
+    # Error types
+    "TaggedError",
+    "UnhandledException",
 ]
