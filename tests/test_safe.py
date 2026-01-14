@@ -16,8 +16,9 @@ class TestSafe:
         def test_returns_err_on_exception(self) -> None:
             result = safe(lambda: int("bad"))
             assert result.is_err()
-            assert isinstance(result.unwrap_err(), UnhandledException)
-            assert isinstance(result.unwrap_err().cause, ValueError)
+            error = result.unwrap_err()
+            assert isinstance(error, UnhandledException)
+            assert error.tag == "UnhandledException"
 
         def test_wraps_any_exception(self) -> None:
             def raise_custom() -> int:
@@ -27,8 +28,8 @@ class TestSafe:
             assert result.is_err()
             err = result.unwrap_err()
             assert isinstance(err, UnhandledException)
-            assert isinstance(err.cause, RuntimeError)
-            assert str(err.cause) == "Custom error"
+            assert err.tag == "UnhandledException"
+            assert str(err) == "Unhandled exception: Custom error"
 
     class TestWithOptions:
         def test_returns_ok_on_success(self) -> None:
@@ -113,8 +114,10 @@ class TestSafeAsync:
 
             result = await safe_async(async_fn)
             assert result.is_err()
-            assert isinstance(result.unwrap_err(), UnhandledException)
-            assert isinstance(result.unwrap_err().cause, ValueError)
+            error = result.unwrap_err()
+            assert isinstance(error, UnhandledException)
+            assert error.tag == "UnhandledException"
+            assert str(error) == "Unhandled exception: Async error"
 
     class TestWithOptions:
         @pytest.mark.asyncio

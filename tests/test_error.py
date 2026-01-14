@@ -73,5 +73,20 @@ class TestTaggedError:
             error = NetworkError("https://example.com")
             assert error.url == "https://example.com"
 
-        def test_chains_cause_in_stack_trace(self) -> None:
-            pass
+        def test_chains_cause_via_dunder_cause(self) -> None:
+            cause = ValueError("root cause")
+
+            class ErrorWithCause(TaggedError):
+                __slots__ = ()
+
+                @property
+                def tag(self) -> str:
+                    return "ErrorWithCause"
+
+                def __init__(self) -> None:
+                    super().__init__("wrapper", cause)
+
+            error = ErrorWithCause()
+            assert error.__cause__ is cause
+            assert str(error.__cause__) == "root cause"
+            assert error.message == "wrapper"

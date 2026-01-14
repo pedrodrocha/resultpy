@@ -13,10 +13,9 @@ E = TypeVar("E", bound="TaggedError")
 
 
 class TaggedError(ABC, Exception):
-    __slots__ = ("_message", "_cause")
+    __slots__ = ("_message",)
 
     _message: str
-    _cause: Optional[Exception]
 
     @property
     @abstractmethod
@@ -29,12 +28,11 @@ class TaggedError(ABC, Exception):
     def __init__(self, message: str, cause: Optional[Exception] = None) -> None:
         super().__init__(message)
         self._message = message
-        self._cause = cause
+        if cause is not None:
+            self.__cause__ = cause  # Python's built-in cause chaining
 
     def __str__(self) -> str:
-        if self._cause is not None:
-            return f"{self._message}\nCaused by: {self._cause}"
-        return self._message
+        return self._message  # Simple, no "Caused by:" appended
 
     @staticmethod
     def is_error(value: object) -> bool:
@@ -139,18 +137,6 @@ class UnhandledException(TaggedError):
     def tag(self) -> str:
         return "UnhandledException"
 
-    @property
-    def cause(self) -> Exception:
-        # _cause is always set in __init__, so we can safely cast
-        assert self._cause is not None
-        return self._cause
-
     def __init__(self, cause: Exception) -> None:
         message = f"Unhandled exception: {cause}"
         super().__init__(message, cause)
-
-    def __str__(self) -> str:
-        return self._message
-
-    def __repr__(self) -> str:
-        return f"UnhandledException({self._cause!r})"
