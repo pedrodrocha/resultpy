@@ -44,7 +44,7 @@ message = parsed.match({
 - [Retry Support](#retry-support)
 - [Generator Composition](#generator-composition) *(TODO)*
 - [Tagged Errors](#tagged-errors)
-- [Serialization](#serialization) *(TODO)*
+- [Serialization](#serialization) 
 - [API Reference](#api-reference)
 
 ## Creating Results
@@ -252,7 +252,51 @@ result_partial = TaggedError.match_partial(
 
 ## Serialization
 
-*TODO: Coming soon*
+Rehydrate Results from JSON for storage or network transfer.
+
+```python
+from resultpy import Result
+import json
+
+# Serialize a Result to JSON (e.g., storage or network transfer)
+original = Result.ok(42)
+serialized_dict = original.serialize()            # {'status': 'ok', 'value': 42}
+serialized_json = json.dumps(serialized_dict)     # "{\"status\":\"ok\",\"value\":42}"
+
+# Rehydrate the serialized Result back to a Result instance
+hydrated = Result.hydrate(json.loads(serialized_json))
+# Result[object, object] | None
+
+# Now you can use Result methods again
+doubled = hydrated.map(lambda x: x * 2)  # Ok(84)
+
+# Works with Err too
+err_result = Result.err(ValueError("failed"))
+err_json = json.dumps(err_result.serialize())     # "{\"status\":\"err\",\"value\":\"failed\"}"
+rehydrated = Result.hydrate(json.loads(err_json))
+# Result[object, object] | None
+
+# Note: Exceptions are serialized as strings for portability.
+# Rehydrating an Err produced from an Exception yields Err("failed") (a string),
+# not an Exception instance. Use typed hydration to reconstruct specific types.
+
+# Typed hydration with decoders
+def decode_int(x: object) -> int:
+    if isinstance(x, int):
+        return x
+    raise ValueError("expected int")
+
+def decode_error(x: object) -> ValueError:
+    # Turn the serialized error payload back into a ValueError
+    return ValueError(str(x))
+
+typed: Result[int, ValueError] | None = Result.hydrate_as(
+    json.loads(serialized_json),
+    ok=decode_int,
+    err=decode_error,
+)
+
+```
 
 ## API Reference
 
@@ -273,6 +317,8 @@ result_partial = TaggedError.match_partial(
 |----------|-------------|
 | `Result.ok(value)` | Create success result |
 | `Result.err(error)` | Create error result |
+| `Result.hydrate(data)` | Deserialize from dict; returns Result[object, object] \| None |
+| `Result.hydrate_as(data, *, ok, err)` | Typed deserialization with decoders; returns Result[T, U] \| None |
 | `Ok(value)` | Create Ok instance |
 | `Err(error)` | Create Err instance |
 | `safe(fn, config?)` | Wrap throwing function with optional retry |
@@ -300,6 +346,7 @@ result_partial = TaggedError.match_partial(
 | `.is_err()` | Check if Err |
 | `.map(fn)` | Transform success value |
 | `.map_err(fn)` | Transform error value |
+| `.serialize()` | Serialize to dict for storage/transport |
 | `.and_then(fn)` | Chain Result-returning function |
 | `.and_then_async(fn)` | Chain async Result-returning function |
 | `.match({"ok": fn, "err": fn})` | Pattern match |
