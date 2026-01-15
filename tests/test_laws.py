@@ -1,4 +1,4 @@
-from pyresult import Result
+from safe_result import Result
 
 
 def f(x: int) -> Result[int, str]:

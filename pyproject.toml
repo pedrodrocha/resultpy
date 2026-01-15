@@ -1,5 +1,5 @@
 [project]
-name = "pyresult"
+name = "safe-result"
 version = "0.1.0"
 description = "A lightweight Result type for Python."
 authors = [{name = "Pedro Rocha", email = "pedro.diniz.rocha@gmail.com"}]
@@ -38,7 +38,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/pyresult/__init__.py"
+path = "src/safe_result/__init__.py"
 
 [tool.pyright]
 typeCheckingMode = "strict"

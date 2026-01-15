@@ -1,5 +1,5 @@
 import pytest
-from pyresult import (
+from safe_result import (
     safe,
     safe_async,
     UnhandledException,
