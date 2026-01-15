@@ -1,10 +1,26 @@
 [project]
 name = "resultpy"
 version = "0.1.0"
-description = ""
+description = "A lightweight Result type for Python."
+authors = [{name = "Pedro Rocha", email = "pedro.diniz.rocha@gmail.com"}]
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.13"
 dependencies = []
+keywords = ["result", "monad", "error-handling", "type-safety"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.urls]
+Homepage = "https://github.com/dmmulroy/resultpy"
+Repository = "https://github.com/dmmulroy/resultpy.git"
+Issues = "https://github.com/dmmulroy/resultpy/issues"
 
 [dependency-groups]
 dev = [
