@@ -645,6 +645,28 @@ class TestResult:
             serialized = err.serialize()
             assert serialized == {"status": "err", "value": str(error)}
 
+    class TestHydrate:
+        def test_hydrates_serialized_ok(self) -> None:
+            serialized = {"status": "ok", "value": 42}
+            result = Result.hydrate(serialized)
+            assert result is not None
+            assert result.is_ok()
+            assert result.unwrap() == 42
+
+        def test_hydrates_serialized_err(self) -> None:
+            serialized = {"status": "err", "value": "fail"}
+            result = Result.hydrate(serialized)
+            assert result is not None
+            assert result.is_err()
+            assert result.unwrap_err() == "fail"
+
+        def test_returns_none_for_invalid_data(self) -> None:
+            assert Result.hydrate({"foo": "bar"}) is None
+            assert Result.hydrate(None) is None
+            assert Result.hydrate(42) is None
+            assert Result.hydrate({"status": "ok"}) is None  
+            assert Result.hydrate({"value": 42}) is None 
+
     class TestHydrateAs:
         def test_hydrates_as_ok_with_decoder(self) -> None:
             def decode_int(x: object) -> int:

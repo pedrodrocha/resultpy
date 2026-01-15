@@ -486,6 +486,44 @@ class Result(Generic[A, E], ABC):
         ...
 
     @staticmethod
+    def hydrate(data: object) -> "Result[object, object] | None":
+        """
+        Dynamic deserialization of a dictionary into a Result instance.
+
+        Reconstructs a Result from its serialized form without type information.
+        This is the inverse of serialize(): it takes a serialized Result and
+        returns the appropriate Ok or Err instance with the raw values.
+
+        Parameters
+        ----------
+        data : object
+            The serialized data. Must be a dict with keys 'status' and 'value',
+            where 'status' is either 'ok' or 'err'.
+
+        Returns
+        -------
+        Result[object, object] | None
+            Ok(value) or Err(value) if the shape is valid, otherwise None.
+        """
+        def is_serialized_result(d: object) -> bool:
+            if not isinstance(d, dict):
+                return False
+            if "status" not in d or "value" not in d:
+                return False
+            if d["status"] not in ("ok", "err"):
+                return False
+            return True
+
+        if not is_serialized_result(data):
+            return None
+
+        serialized = cast(dict[str, object], data)
+        if serialized["status"] == "ok":
+            return Result.ok(serialized["value"])
+        else:  # status == "err"
+            return Result.err(serialized["value"])
+
+    @staticmethod
     def hydrate_as[T, U](
         data: object,
         *,
