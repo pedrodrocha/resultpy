@@ -1,5 +1,5 @@
 from typing import Never
-from resultpy import (
+from pyresult import (
     Result,
     Ok,
     Err,

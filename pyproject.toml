@@ -1,5 +1,5 @@
 [project]
-name = "resultpy"
+name = "pyresult"
 version = "0.1.0"
 description = "A lightweight Result type for Python."
 authors = [{name = "Pedro Rocha", email = "pedro.diniz.rocha@gmail.com"}]
@@ -18,9 +18,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/dmmulroy/resultpy"
-Repository = "https://github.com/dmmulroy/resultpy.git"
-Issues = "https://github.com/dmmulroy/resultpy/issues"
+Homepage = "https://github.com/pedrodrocha/pyresult"
+Repository = "https://github.com/pedrodrocha/pyresult.git"
+Issues = "https://github.com/pedrodrocha/pyresult/issues"
 
 [dependency-groups]
 dev = [
@@ -38,7 +38,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/resultpy/__init__.py"
+path = "src/pyresult/__init__.py"
 
 [tool.pyright]
 typeCheckingMode = "strict"

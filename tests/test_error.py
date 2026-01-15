@@ -1,4 +1,4 @@
-from resultpy import TaggedError, UnhandledException
+from pyresult import TaggedError, UnhandledException
 from typing import TypeAlias, Union
 
 
