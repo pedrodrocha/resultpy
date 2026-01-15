@@ -104,15 +104,6 @@ err_result: Result[int, ValueError] = Result.err(ValueError("invalid"))
 # Transform errors
 err_result.map_err(lambda e: RuntimeError(str(e)))  # Err(RuntimeError(...))
 
-# Fallback values
-err_result.unwrap_or(0)  # 0
-
-# Pattern match
-err_result.match({
-    "ok": lambda x: f"Got {x}",
-    "err": lambda e: f"Failed: {e}"
-})
-
 
 # Recover from specific errors
 class NotFoundError(TaggedError):
@@ -125,7 +116,6 @@ class NotFoundError(TaggedError):
         self.id = id
 
 def fetch_user(id: str) -> Result[dict[str, str], NotFoundError]:
-    # Could return Ok(user) or Err(NotFoundError(id))
     if id == "valid":
         return Result.ok({"name": "John", "id": id})
     return Result.err(NotFoundError(id))
@@ -207,7 +197,6 @@ def parse_json(input: str) -> dict:
     return json.loads(input)
 
 result = safe(parse_json)
-#    ^? Result[dict, UnhandledException]
 
 # Custom handler — you control the error type using TaggedError
 class ParseError(TaggedError):
@@ -225,22 +214,17 @@ result = safe({
     "try_": lambda: parse_json('{"key": "value"}'),
     "catch": lambda e: ParseError(e)
 })
-#    ^? Result[dict, ParseError]
 
 # Same for async
 async def fetch_and_parse(json_str: str) -> dict:
     # Simulate async work
     return parse_json(json_str)
 
-result = await safe_async(lambda: fetch_and_parse('{"async": true}'))
-#    ^? Result[dict, UnhandledException]
-
 # Async with custom error handler
 result = await safe_async({
     "try_": lambda: fetch_and_parse('invalid'),
     "catch": lambda e: ParseError(e)
 })
-#    ^? Result[dict, ParseError]
 ```
 
 ## Tagged Errors
@@ -313,7 +297,7 @@ serialized_json = json.dumps(serialized_dict)     # "{\"status\":\"ok\",\"value\
 
 # Rehydrate the serialized Result back to a Result instance
 hydrated = Result.hydrate(json.loads(serialized_json))
-# Result[object, object] | None
+
 
 # Now you can use Result methods again
 doubled = hydrated.map(lambda x: x * 2)  # Ok(84)
@@ -322,7 +306,6 @@ doubled = hydrated.map(lambda x: x * 2)  # Ok(84)
 err_result = Result.err(ValueError("failed"))
 err_json = json.dumps(err_result.serialize())     # "{\"status\":\"err\",\"value\":\"failed\"}"
 rehydrated = Result.hydrate(json.loads(err_json))
-# Result[object, object] | None
 
 # Note: Exceptions are serialized as strings for portability.
 # Rehydrating an Err produced from an Exception yields Err("failed") (a string),
