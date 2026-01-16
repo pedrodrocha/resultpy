@@ -11,6 +11,7 @@ from okresult import (
     and_then,
     and_then_async,
     match,
+    Panic,
 )
 import pytest
 
@@ -188,6 +189,25 @@ class TestResult:
             result = mapper(Result.ok(6))
             assert result.unwrap() == 12
 
+        def test_data_first_catches_callback_error(self) -> None:
+            def failing_callback(x: int) -> int:
+                raise ValueError("Callback failed")
+
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                map(result, failing_callback)
+            assert "map failed" in str(exc_info.value)
+
+        def test_data_last_catches_callback_error(self) -> None:
+            def failing_callback(x: int) -> int:
+                raise ValueError("Callback failed")
+
+            mapper = map(failing_callback)
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                mapper(result)
+            assert "map failed" in str(exc_info.value)
+
     class TestStandaloneMapErr:
         def test_data_first_transforms_err_value(self) -> None:
             result = Result.err("Error")
@@ -203,6 +223,25 @@ class TestResult:
             result = mapper(Result.err("Error"))
             assert result == Err("Error: Error")
             assert isinstance(result, Err)
+
+        def test_data_first_catches_callback_error(self) -> None:
+            def failing_callback(e: str) -> str:
+                raise ValueError("Callback failed")
+
+            result = Result.err("error")
+            with pytest.raises(Panic) as exc_info:
+                map_err(result, failing_callback)
+            assert "map_err failed" in str(exc_info.value)
+
+        def test_data_last_catches_callback_error(self) -> None:
+            def failing_callback(e: str) -> str:
+                raise ValueError("Callback failed")
+
+            mapper = map_err(failing_callback)
+            result = Result.err("error")
+            with pytest.raises(Panic) as exc_info:
+                mapper(result)
+            assert "map_err failed" in str(exc_info.value)
 
     class TestStandaloneTap:
         def test_data_first_runs_side_effect_on_ok(self) -> None:
@@ -254,6 +293,25 @@ class TestResult:
             assert result == Err("Error")
             assert isinstance(result, Err)
 
+        def test_data_first_catches_callback_error(self) -> None:
+            def failing_callback(x: int) -> None:
+                raise ValueError("Callback failed")
+
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                tap(result, failing_callback)
+            assert "tap failed" in str(exc_info.value)
+
+        def test_data_last_catches_callback_error(self) -> None:
+            def failing_callback(x: int) -> None:
+                raise ValueError("Callback failed")
+
+            tapper = tap(failing_callback)
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                tapper(result)
+            assert "tap failed" in str(exc_info.value)
+
     class TestStandaloneTapAsync:
         @pytest.mark.asyncio
         async def test_data_first_runs_side_effect_on_ok(self) -> None:
@@ -303,6 +361,27 @@ class TestResult:
             err: Err[int, str] = Err("Error")
             _result = await tapper(err)
             assert captured == 0
+
+        @pytest.mark.asyncio
+        async def test_data_first_catches_callback_error(self) -> None:
+            async def failing_callback(x: int) -> None:
+                raise ValueError("Callback failed")
+
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                await tap_async(result, failing_callback)
+            assert "tap_async failed" in str(exc_info.value)
+
+        @pytest.mark.asyncio
+        async def test_data_last_catches_callback_error(self) -> None:
+            async def failing_callback(x: int) -> None:
+                raise ValueError("Callback failed")
+
+            tapper = tap_async(failing_callback)
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                await tapper(result)
+            assert "tap_async failed" in str(exc_info.value)
 
     class TestStandaloneUnwrap:
         def test_returns_value_for_ok(self) -> None:
@@ -491,6 +570,25 @@ class TestResult:
             result2 = and_then(initial_err, validate)
             assert result2.is_err()
 
+        def test_data_first_catches_callback_error(self) -> None:
+            def failing_callback(x: int) -> Result[int, str]:
+                raise ValueError("Callback failed")
+
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                and_then(result, failing_callback)
+            assert "and_then failed" in str(exc_info.value)
+
+        def test_data_last_catches_callback_error(self) -> None:
+            def failing_callback(x: int) -> Result[int, str]:
+                raise ValueError("Callback failed")
+
+            chainer = and_then(failing_callback)
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                chainer(result)
+            assert "and_then failed" in str(exc_info.value)
+
     class TestAndThenAsyncTopLevel:
         @pytest.mark.asyncio
         async def test_data_first_chains_ok_to_ok(self) -> None:
@@ -560,6 +658,27 @@ class TestResult:
             result = await transformer(err)
             assert called is False
             assert result.is_err()
+
+        @pytest.mark.asyncio
+        async def test_data_first_catches_callback_error(self) -> None:
+            async def failing_callback(x: int) -> Result[int, str]:
+                raise ValueError("Callback failed")
+
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                await and_then_async(result, failing_callback)
+            assert "and_then_async failed" in str(exc_info.value)
+
+        @pytest.mark.asyncio
+        async def test_data_last_catches_callback_error(self) -> None:
+            async def failing_callback(x: int) -> Result[int, str]:
+                raise ValueError("Callback failed")
+
+            chainer = and_then_async(failing_callback)
+            result = Result.ok(5)
+            with pytest.raises(Panic) as exc_info:
+                await chainer(result)
+            assert "and_then_async failed" in str(exc_info.value)
 
     class TestMatch:
         def test_matches_ok(self) -> None:

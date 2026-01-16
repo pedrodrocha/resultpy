@@ -3,7 +3,7 @@ from typing_extensions import TypedDict
 import asyncio
 
 from .result import Result, Ok, Err
-from .error import UnhandledException
+from .error import UnhandledException, panic
 
 A = TypeVar("A")
 E = TypeVar("E")
@@ -59,8 +59,12 @@ def safe(
         else:
             try:
                 return Ok(thunk["try_"]())
-            except Exception as e:
-                return Err(thunk["catch"](e))
+            except Exception as original_cause:
+                # If the user's catch handler throws, it's a defect — Panic
+                try:
+                    return Err(thunk["catch"](original_cause))
+                except Exception as catch_handler_error:
+                    panic("Result.safe catch handler threw", catch_handler_error)
 
     retry_config = (config or {}).get("retry", {})
     times = retry_config.get("times", 0) if retry_config else 0
@@ -102,8 +106,12 @@ async def safe_async(
         else:
             try:
                 return Ok(await thunk["try_"]())
-            except Exception as e:
-                return Err(thunk["catch"](e))
+            except Exception as original_cause:
+                # If the user's catch handler throws, it's a defect — Panic
+                try:
+                    return Err(thunk["catch"](original_cause))
+                except Exception as catch_handler_error:
+                    panic("Result.safe_async catch handler threw", catch_handler_error)
 
     def get_delay(attempt: int) -> float:
         if not config:
