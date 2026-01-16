@@ -1,4 +1,5 @@
 from typing import (
+    Awaitable,
     TypeVar,
     Generic,
     Literal,
@@ -14,30 +15,68 @@ from typing import (
 )
 from abc import ABC, abstractmethod
 
-"""
-Copied from src/pyresult/result.py to preserve full API
-"""
+from .error import panic
 
+"""
+Type variable for method parameters
+"""
 T = TypeVar("T")
+
+"""
+Type variable for a generic type A
+"""
 A = TypeVar("A", covariant=True)
+
+"""
+Type variable for a transformed generic type B
+"""
 B = TypeVar("B")
+
+"""
+Type variable for a generic error type E
+"""
 E = TypeVar("E", covariant=True)
+
+"""
+Type variable for a method error parameter U
+"""
 U = TypeVar("U")
+
+"""
+Type variable for a generic type G, contravariant
+"""
 G = TypeVar("G", contravariant=True)
+
+
+"""
+Type variable for a transformed generic error type F
+"""
 F = TypeVar("F")
 
 
 class Matcher(TypedDict, Generic[A, B, E, F]):
+    """ "
+    TypedDict for pattern matching on Result variants
+    """
+
     ok: Callable[[A], B]
     err: Callable[[E], F]
 
 
 class SerializedOk(TypedDict, Generic[A]):
+    """
+    A serialized representation of an Ok result
+    """
+
     status: Literal["ok"]
     value: A
 
 
 class SerializedErr(TypedDict, Generic[E]):
+    """
+    A serialized representation of an Err result
+    """
+
     status: Literal["err"]
     value: E
 
@@ -50,8 +89,7 @@ class Result(Generic[A, E], ABC):
 
     @property
     @abstractmethod
-    def status(self) -> Literal["ok", "err"]:
-        ...
+    def status(self) -> Literal["ok", "err"]: ...
 
     @staticmethod
     def ok(value: T) -> "Ok[T, Never]":
@@ -62,60 +100,45 @@ class Result(Generic[A, E], ABC):
         return Err(value)
 
     @abstractmethod
-    def is_ok(self) -> bool:
-        ...
+    def is_ok(self) -> bool: ...
 
     @abstractmethod
-    def is_err(self) -> bool:
-        ...
+    def is_err(self) -> bool: ...
 
     @abstractmethod
-    def map(self, fn: Callable[[A], B]) -> "Result[B, E]":
-        ...
+    def map(self, fn: Callable[[A], B]) -> "Result[B, E]": ...
 
     @abstractmethod
-    def map_err(self, fn: Callable[[E], F]) -> "Result[A, F]":
-        ...
+    def map_err(self, fn: Callable[[E], F]) -> "Result[A, F]": ...
 
     @abstractmethod
-    def unwrap(self, message: Optional[str] = None) -> Union[A, object] | Never:
-        ...
+    def unwrap(self, message: Optional[str] = None) -> Union[A, object] | Never: ...
 
     @abstractmethod
-    def unwrap_or(self, fallback: B) -> Union[A, B]:
-        ...
+    def unwrap_or(self, fallback: B) -> Union[A, B]: ...
 
     @abstractmethod
-    def unwrap_err(self, message: Optional[str] = None) -> E:
-        ...
+    def unwrap_err(self, message: Optional[str] = None) -> E: ...
 
     @abstractmethod
-    def tap(self, fn: Callable[[A], None]) -> "Result[A, E]":
-        ...
+    def tap(self, fn: Callable[[A], None]) -> "Result[A, E]": ...
 
     @abstractmethod
-    async def tap_async(
-        self, fn: Callable[[A], Coroutine[None, None, None]]
-    ) -> "Result[A, E]":
-        ...
+    async def tap_async(self, fn: Callable[[A], Awaitable[None]]) -> "Result[A, E]": ...
 
     @abstractmethod
-    def and_then(self, fn: Callable[[A], "Result[B, F]"]) -> "Result[B, E | F]":
-        ...
+    def and_then(self, fn: Callable[[A], "Result[B, F]"]) -> "Result[B, E | F]": ...
 
     @abstractmethod
     async def and_then_async(
-        self, fn: Callable[[A], Coroutine[None, None, "Result[B, E]"]]
-    ) -> "Result[B, E]":
-        ...
+        self, fn: Callable[[A], Awaitable["Result[B, F]"]]
+    ) -> "Result[B, E | F]": ...
 
     @abstractmethod
-    def match(self, cases: Matcher[A, B, E, F]) -> B | F:
-        ...
+    def match(self, cases: Matcher[A, B, E, F]) -> B | F: ...
 
     @abstractmethod
-    def serialize(self) -> SerializedResult[A, E]:
-        ...
+    def serialize(self) -> SerializedResult[A, E]: ...
 
     @staticmethod
     def hydrate(data: object) -> "Result[object, object] | None":
@@ -181,7 +204,7 @@ class Ok(Result[A, E]):
         return "ok"
 
     def map(self, fn: Callable[[A], B]) -> "Ok[B, E]":
-        return Ok(fn(self.value))
+        return try_or_panic(lambda: Ok(fn(self.value)), "Ok.map failed")
 
     def map_err(self, fn: Callable[[E], F]) -> "Ok[A, F]":
         return cast("Ok[A, F]", self)
@@ -199,22 +222,25 @@ class Ok(Result[A, E]):
         fn(self.value)
         return self
 
-    async def tap_async(
-        self, fn: Callable[[A], Coroutine[None, None, None]]
-    ) -> "Ok[A, E]":
+    async def tap_async(self, fn: Callable[[A], Awaitable[None]]) -> "Ok[A, E]":
         await fn(self.value)
         return self
 
     def and_then(self, fn: Callable[[A], "Result[B, F]"]) -> "Result[B, E | F]":
-        return fn(self.value)
+        return try_or_panic(lambda: fn(self.value), "Ok.and_then failed")
 
     async def and_then_async(
-        self, fn: Callable[[A], Coroutine[None, None, Result[B, F]]]
+        self, fn: Callable[[A], Awaitable[Result[B, F]]]
     ) -> "Result[B, E | F]":
-        return await fn(self.value)
+        return await try_or_panic_async(
+            lambda: fn(self.value), "Ok.and_then_async failed"
+        )
 
     def match(self, cases: Matcher[A, B, E, F]) -> B | F:
-        return cases["ok"](self.value)
+        def call_handler() -> B | F:
+            return cases["ok"](self.value)
+
+        return try_or_panic(call_handler, "Ok.match failed")
 
     def serialize(self) -> SerializedOk[A]:
         return SerializedOk(status="ok", value=self.value)
@@ -256,7 +282,7 @@ class Err(Result[A, E]):
         return cast("Err[B, E]", self)
 
     def map_err(self, fn: Callable[[E], F]) -> "Err[A, F]":
-        return Err(fn(self.value))
+        return try_or_panic(lambda: Err(fn(self.value)), "Err.map_err failed")
 
     def unwrap(self, message: Optional[str] = None) -> Never:
         raise Exception(message or f"Unwrap called on Err: {self.value!r}")
@@ -270,21 +296,24 @@ class Err(Result[A, E]):
     def tap(self, fn: Callable[[A], None]) -> "Err[A, E]":
         return self
 
-    async def tap_async(
-        self, fn: Callable[[A], Coroutine[None, None, None]]
-    ) -> "Err[A, E]":
+    async def tap_async(self, fn: Callable[[A], Awaitable[None]]) -> "Err[A, E]":
         return self
 
     def and_then(self, fn: Callable[[A], Result[B, F]]) -> "Err[A, E]":
-        return cast("Err[A, E]", self)
+        return try_or_panic(lambda: cast("Err[A, E]", self), "Err.and_then failed")
 
     async def and_then_async(
-        self, fn: Callable[[A], Coroutine[None, None, Result[B, F]]]
+        self, fn: Callable[[A], Awaitable[Result[B, F]]]
     ) -> "Err[A, E]":
-        return cast("Err[A, E]", self)
+        return try_or_panic(
+            lambda: cast("Err[A, E]", self), "Err.and_then_async failed"
+        )
 
     def match(self, cases: Matcher[A, B, E, F]) -> B | F:
-        return cases["err"](self.value)
+        def call_handler() -> B | F:
+            return cases["err"](self.value)
+
+        return try_or_panic(call_handler, "Err.match failed")
 
     def serialize(self) -> SerializedErr[E]:
         value = str(self.value) if isinstance(self.value, Exception) else self.value
@@ -326,8 +355,8 @@ def map(
 ) -> Result[B, E] | Callable[[Result[A, E]], Result[B, E]]:
     if fn is None:
         _fn = cast(Callable[[A], B], result)
-        return lambda r: r.map(_fn)
-    return cast(Result[A, E], result).map(fn)
+        return lambda r: try_or_panic(lambda: r.map(_fn), "map failed")
+    return try_or_panic(lambda: cast(Result[A, E], result).map(fn), "map failed")
 
 
 @overload
@@ -344,8 +373,10 @@ def map_err(
 ) -> Result[A, F] | Callable[[Result[A, E]], Result[A, F]]:
     if fn is None:
         _fn = cast(Callable[[E], F], result)
-        return lambda r: r.map_err(_fn)
-    return cast(Result[A, E], result).map_err(fn)
+        return lambda r: try_or_panic(lambda: r.map_err(_fn), "map_err failed")
+    return try_or_panic(
+        lambda: cast(Result[A, E], result).map_err(fn), "map_err failed"
+    )
 
 
 @overload
@@ -362,33 +393,37 @@ def tap(
 ) -> Result[A, E] | Callable[[Result[A, E]], Result[A, E]]:
     if fn is None:
         _fn = cast(Callable[[A], None], result)
-        return lambda r: r.tap(_fn)
-    return cast(Result[A, E], result).tap(fn)
+        return lambda r: try_or_panic(lambda: r.tap(_fn), "tap failed")
+    return try_or_panic(lambda: cast(Result[A, E], result).tap(fn), "tap failed")
 
 
 @overload
 def tap_async(
-    result: Result[A, E], fn: Callable[[A], Coroutine[None, None, None]]
+    result: Result[A, E], fn: Callable[[A], Awaitable[None]]
 ) -> Coroutine[None, None, Result[A, E]]: ...
 
 
 @overload
 def tap_async(
-    result: Callable[[A], Coroutine[None, None, None]],
+    result: Callable[[A], Awaitable[None]],
 ) -> Callable[[Result[A, E]], Coroutine[None, None, Result[A, E]]]: ...
 
 
 def tap_async(
-    result: Result[A, E] | Callable[[A], Coroutine[None, None, None]],
-    fn: Callable[[A], Coroutine[None, None, None]] | None = None,
+    result: Result[A, E] | Callable[[A], Awaitable[None]],
+    fn: Callable[[A], Awaitable[None]] | None = None,
 ) -> (
     Coroutine[None, None, Result[A, E]]
     | Callable[[Result[A, E]], Coroutine[None, None, Result[A, E]]]
 ):
     if fn is None:
-        _fn = cast(Callable[[A], Coroutine[None, None, None]], result)
-        return lambda r: r.tap_async(_fn)
-    return cast(Result[A, E], result).tap_async(fn)
+        _fn = cast(Callable[[A], Awaitable[None]], result)
+        return lambda r: try_or_panic_async(
+            lambda: r.tap_async(_fn), "tap_async failed"
+        )
+    return try_or_panic_async(
+        lambda: cast(Result[A, E], result).tap_async(fn), "tap_async failed"
+    )
 
 
 def unwrap(result: Result[A, E], message: Optional[str] = None) -> A:
@@ -414,51 +449,62 @@ def and_then(
     if fn is None:
         _fn = cast(Callable[[A], Result[B, F]], result)
         return lambda r: cast(
-            Result[B, E | F], r.and_then(cast(Callable[[A], Result[B, E]], _fn))
-        )
-    return cast(
-        Result[B, E | F],
-        cast(Result[A, E], result).and_then(cast(Callable[[A], Result[B, E]], fn)),
-    )
-
-
-@overload
-def and_then_async(
-    result: Result[A, E], fn: Callable[[A], Coroutine[None, None, Result[B, F]]]
-) -> Coroutine[None, None, Result[B, E | F]]: ...
-
-
-@overload
-def and_then_async(
-    result: Callable[[A], Coroutine[None, None, Result[B, F]]],
-) -> Callable[[Result[A, E]], Coroutine[None, None, Result[B, E | F]]]: ...
-
-
-def and_then_async(
-    result: Result[A, E] | Callable[[A], Coroutine[None, None, Result[B, F]]],
-    fn: Callable[[A], Coroutine[None, None, Result[B, F]]] | None = None,
-) -> (
-    Coroutine[None, None, Result[B, E | F]]
-    | Callable[[Result[A, E]], Coroutine[None, None, Result[B, E | F]]]
-):
-    if fn is None:
-        _fn = cast(Callable[[A], Coroutine[None, None, Result[B, F]]], result)
-        return lambda r: cast(
-            Coroutine[None, None, Result[B, E | F]],
-            r.and_then_async(
-                cast(Callable[[A], Coroutine[None, None, Result[B, E]]], _fn)
+            Result[B, E | F],
+            try_or_panic(
+                lambda: r.and_then(cast(Callable[[A], Result[B, E]], _fn)),
+                "and_then failed",
             ),
         )
     return cast(
-        Coroutine[None, None, Result[B, E | F]],
-        cast(Result[A, E], result).and_then_async(
-            cast(Callable[[A], Coroutine[None, None, Result[B, E]]], fn)
+        Result[B, E | F],
+        try_or_panic(
+            lambda: cast(Result[A, E], result).and_then(
+                cast(Callable[[A], Result[B, E]], fn)
+            ),
+            "and_then failed",
         ),
     )
 
 
 @overload
-def match(result: Result[A, E], handlers: Matcher[A, B, E, B]) -> B: ...
+def and_then_async(
+    result: Result[A, E], fn: Callable[[A], Awaitable[Result[B, F]]]
+) -> Coroutine[None, None, Result[B, E | F]]: ...
+
+
+@overload
+def and_then_async(
+    result: Callable[[A], Awaitable[Result[B, F]]],
+) -> Callable[[Result[A, E]], Coroutine[None, None, Result[B, E | F]]]: ...
+
+
+def and_then_async(
+    result: Result[A, E] | Callable[[A], Awaitable[Result[B, F]]],
+    fn: Callable[[A], Awaitable[Result[B, F]]] | None = None,
+) -> (
+    Coroutine[None, None, Result[B, E | F]]
+    | Callable[[Result[A, E]], Coroutine[None, None, Result[B, E | F]]]
+):
+    if fn is None:
+        _fn = cast(Callable[[A], Awaitable[Result[B, F]]], result)
+        return lambda r: cast(
+            Coroutine[None, None, Result[B, E | F]],
+            try_or_panic_async(
+                lambda: r.and_then_async(
+                    cast(Callable[[A], Awaitable[Result[B, E]]], _fn)
+                ),
+                "and_then_async failed",
+            ),
+        )
+    return cast(
+        Coroutine[None, None, Result[B, E | F]],
+        try_or_panic_async(
+            lambda: cast(Result[A, E], result).and_then_async(
+                cast(Callable[[A], Awaitable[Result[B, E]]], fn)
+            ),
+            "and_then_async failed",
+        ),
+    )
 
 
 @overload
@@ -467,11 +513,39 @@ def match(
 ) -> Callable[[Result[A, E]], B]: ...
 
 
+@overload
+def match(result: Result[A, E], handlers: Matcher[A, B, E, B]) -> B: ...
+
+
 def match(
     result: Result[A, E] | Matcher[A, B, E, B],
     handlers: Matcher[A, B, E, B] | None = None,
 ) -> B | Callable[[Result[A, E]], B]:
     if handlers is None:
         _handlers = cast(Matcher[A, B, E, B], result)
-        return lambda r: r.match(_handlers)
-    return cast(Result[A, E], result).match(handlers)
+
+        def apply_match(r: Result[A, E]) -> B:
+            return try_or_panic(lambda: r.match(_handlers), "match failed")
+
+        return apply_match
+
+    def apply_handlers() -> B:
+        return try_or_panic(
+            lambda: cast(Result[A, E], result).match(handlers), "match failed"
+        )
+
+    return apply_handlers()
+
+
+def try_or_panic(fn: Callable[[], A], message: str) -> A:
+    try:
+        return fn()
+    except Exception as e:
+        panic(message, e)
+
+
+async def try_or_panic_async(fn: Callable[[], Awaitable[A]], message: str) -> A:
+    try:
+        return await fn()
+    except Exception as e:
+        panic(message, e)

@@ -1,9 +1,5 @@
 import pytest
-from okresult import (
-    safe,
-    safe_async,
-    UnhandledException,
-)
+from okresult import safe, safe_async, UnhandledException, Panic
 
 
 class TestSafe:
@@ -54,6 +50,49 @@ class TestSafe:
             err = result.unwrap_err()
             assert isinstance(err, MyError)
             assert "invalid literal" in err.message
+
+        def test_supports_custom_catch_handler(self) -> None:
+            class CustomException(Exception):
+                pass
+
+            result = safe(
+                {
+                    "try_": lambda: (_ for _ in ()).throw(CustomException("Oops")),
+                    "catch": lambda e: f"Caught: {e}",
+                }
+            )
+
+            assert result.is_err()
+            if result.is_err():
+                assert result.unwrap_err() == "Caught: Oops"
+                assert isinstance(result.unwrap_err(), str)
+
+        def test_throws_panic_if_catch_throws(self) -> None:
+            def faulty_catch(e: Exception) -> str:
+                raise RuntimeError("Catch handler failed")
+
+            with pytest.raises(Panic):
+                safe(
+                    {
+                        "try_": lambda: int("bad"),
+                        "catch": faulty_catch,
+                    }
+                )
+
+        def test_panic_from_catch_error_containing_cause(self) -> None:
+            def faulty_catch(e: Exception) -> str:
+                raise RuntimeError("Catch handler failed") from e
+
+            with pytest.raises(Panic) as exc_info:
+                safe(
+                    {
+                        "try_": lambda: int("bad"),
+                        "catch": faulty_catch,
+                    }
+                )
+
+            assert isinstance(exc_info.value.__cause__, RuntimeError)
+            assert exc_info.value.__cause__.__cause__ is not None
 
     class TestWithRetry:
         def test_retries_on_failure(self) -> None:
@@ -139,6 +178,42 @@ class TestSafeAsync:
             )
             assert result.is_err()
             assert result.unwrap_err() == "Caught: Async error"
+
+        @pytest.mark.asyncio
+        async def test_throws_panic_if_catch_throws(self) -> None:
+            async def async_fn() -> int:
+                raise ValueError("Original error")
+
+            def faulty_catch(e: Exception) -> str:
+                raise RuntimeError("Catch handler failed")
+
+            with pytest.raises(Panic):
+                await safe_async(
+                    {
+                        "try_": async_fn,
+                        "catch": faulty_catch,
+                    }
+                )
+
+        @pytest.mark.asyncio
+        async def test_panic_from_catch_error_containing_cause(self) -> None:
+            async def async_fn() -> int:
+                raise ValueError("Original error")
+
+            def faulty_catch(e: Exception) -> str:
+                raise RuntimeError("Catch handler failed") from e
+
+            with pytest.raises(Panic) as exc_info:
+                await safe_async(
+                    {
+                        "try_": async_fn,
+                        "catch": faulty_catch,
+                    }
+                )
+
+            # Verify the cause chain is preserved
+            assert isinstance(exc_info.value.__cause__, RuntimeError)
+            assert exc_info.value.__cause__.__cause__ is not None
 
     class TestWithRetry:
         @pytest.mark.asyncio

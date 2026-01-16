@@ -1,7 +1,11 @@
 # okresult
 
-> [!WARNING]
-> ...Still cooking... :man_cook:
+[![PyPI version](https://img.shields.io/pypi/v/okresult.svg)](https://pypi.org/project/okresult/)
+[![Python version](https://img.shields.io/pypi/pyversions/okresult.svg)](https://pypi.org/project/okresult/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/pedrodrocha/okresult/actions/workflows/test.yml/badge.svg)](https://github.com/pedrodrocha/okresult/actions/workflows/test.yml)
+[![Type checking: Pyright](https://img.shields.io/badge/type%20checking-Pyright-blue.svg)](https://github.com/microsoft/pyright)
+[![Code style: Black](https://img.shields.io/badge/code%20style-Black-000000.svg)](https://github.com/psf/black)
 
 Lightweight Result type for Python, inspired by [better-result](https://github.com/dmmulroy/better-result).
 
@@ -41,9 +45,9 @@ message = parsed.match({
 - [Transforming Results](#transforming-results)
 - [Handling Errors](#handling-errors)
 - [Extracting Values](#extracting-values)
+- [Panic](#panic)
 - [Retry Support](#retry-support)
 - [Generator Composition](#generator-composition) *(TODO)*
-- [Panic](#panic) *(TODO)*
 - [Tagged Errors](#tagged-errors)
 - [Serialization](#serialization) 
 - [API Reference](#api-reference)
@@ -156,6 +160,56 @@ value = result_err.match({
 ## Generator Composition
 
 *TODO: Coming soon*
+
+## Panic
+
+Thrown (not returned) when user callbacks throw inside Result operations. Represents a defect in your code, not a domain error.
+
+```python
+from okresult import Result, Panic
+
+# Callback throws → Panic
+try:
+    Result.ok(1).map(lambda x: 1 // 0)
+except Panic as p:
+    print(f"Panic: {p.message}, caused by: {p.cause}")
+
+# Catch handler throws → Panic  
+try:
+    Result.try_({
+        "try_": lambda: 1 / 1,
+        "catch": lambda e: 1 // 0  # Bug in handler
+    })
+except Panic as p:
+    print(f"Panic: {p.message}, caused by: {p.cause}")
+
+# and_then callback throws → Panic
+try:
+    Result.ok(1).and_then(lambda x: 1 // 0)
+except Panic as p:
+    print(f"Panic: {p.message}, caused by: {p.cause}")
+
+# match handler throws → Panic
+try:
+    Result.ok(1).match({
+        "ok": lambda x: 1 // 0,  # Bug in handler
+        "err": lambda e: 0
+    })
+except Panic as p:
+    print(f"Panic: {p.message}, caused by: {p.cause}")
+```
+
+### Why Panic?
+
+`Err` is for recoverable domain errors. `Panic` is for bugs — like Rust's `panic!()`. If your `.map()` callback throws, that's not an error to handle, it's a defect to fix. Returning `Err` would collapse type safety (`Result[T, E]` becomes `Result[T, E | Unknown]`).
+
+### Panic Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `message` | `str` | Describes where/what panicked (e.g., "map failed") |
+| `cause` | `Exception` | The exception that was thrown |
+
 
 ## Retry Support
 

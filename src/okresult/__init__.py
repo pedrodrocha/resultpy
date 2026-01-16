@@ -27,7 +27,7 @@ from .safe import (
     RetryConfigAsync,
 )
 
-from .error import TaggedError, UnhandledException
+from .error import TaggedError, UnhandledException, is_panic, panic, Panic
 
 __all__ = [
     # Result types
@@ -56,4 +56,7 @@ __all__ = [
     # Error types
     "TaggedError",
     "UnhandledException",
+    "is_panic",
+    "panic",
+    "Panic",
 ]
