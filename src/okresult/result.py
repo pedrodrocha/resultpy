@@ -86,6 +86,15 @@ SerializedResult: TypeAlias = Union[SerializedOk[A], SerializedErr[E]]
 
 
 class Result(Generic[A, E], ABC):
+    """Discriminated union representing operation success or failure.
+
+    Result[A, E] is either Ok[A, E] (success with value) or Err[A, E] (failure with error).
+
+    Example:
+        >>> result: Result[int, str] = Ok(42)
+        >>> result.map(lambda x: x * 2)
+        Ok(84)
+    """
     __slots__ = ()
 
     @property
@@ -194,6 +203,18 @@ class Result(Generic[A, E], ABC):
 
 
 class Ok(Result[A, E]):
+    """Successful result variant.
+
+    Args:
+        value: Success value.
+
+    Example:
+        >>> result = Ok(42)
+        >>> result.value
+        42
+        >>> result.status
+        'ok'
+    """
     __slots__ = ("value",)
     __match_args__ = ("value",)
 
@@ -205,45 +226,189 @@ class Ok(Result[A, E]):
         return "ok"
 
     def map(self, fn: Callable[[A], B]) -> "Ok[B, E]":
+        """Transforms success value.
+
+        Args:
+            fn: Transformation function.
+
+        Returns:
+            Ok with transformed value.
+
+        Raises:
+            Panic: If fn throws.
+
+        Example:
+            >>> Ok(2).map(lambda x: x * 3)
+            Ok(6)
+        """
         return try_or_panic(lambda: Ok(fn(self.value)), "Ok.map failed")
 
     def map_err(self, fn: Callable[[E], F]) -> "Ok[A, F]":
+        """No-op on Ok, returns self with new phantom error type.
+
+        Args:
+            fn: Ignored.
+
+        Returns:
+            Self with updated phantom E type.
+        """
         return cast("Ok[A, F]", self)
 
     def unwrap(self, message: Optional[str] = None) -> A:
+        """Extracts value.
+
+        Args:
+            message: Ignored.
+
+        Returns:
+            The value.
+
+        Example:
+            >>> Ok(42).unwrap()
+            42
+        """
         return self.value
 
     def unwrap_or(self, fallback: object) -> A:
+        """Returns value, ignoring fallback.
+
+        Args:
+            fallback: Ignored.
+
+        Returns:
+            The value.
+
+        Example:
+            >>> Ok(42).unwrap_or(0)
+            42
+        """
         return self.value
 
     def unwrap_err(self, message: Optional[str] = None) -> NoReturn:
+        """Panics with optional message.
+
+        Args:
+            message: Error message.
+
+        Raises:
+            Panic: Always panics.
+
+        Example:
+            >>> Ok(42).unwrap_err()
+            Panic: unwrap_err called on Ok: 42
+        """
         panic(message or f"unwrap_err called on Ok: {self.value!r}")
 
     def tap(self, fn: Callable[[A], None]) -> "Ok[A, E]":
+        """Runs side effect, returns self.
+
+        Args:
+            fn: Side effect function.
+
+        Returns:
+            Self.
+
+        Raises:
+            Panic: If fn throws.
+
+        Example:
+            >>> Ok(2).tap(print).map(lambda x: x * 2)
+            2
+            Ok(4)
+        """
         fn(self.value)
         return self
 
     async def tap_async(self, fn: Callable[[A], Awaitable[None]]) -> "Ok[A, E]":
+        """Runs async side effect, returns self.
+
+        Args:
+            fn: Async side effect function.
+
+        Returns:
+            Self.
+
+        Raises:
+            Panic: If fn throws or rejects.
+
+        Example:
+            >>> await Ok(2).tap_async(async_log)
+            Ok(2)
+        """
         await fn(self.value)
         return self
 
     def and_then(self, fn: Callable[[A], "Result[B, F]"]) -> "Result[B, E | F]":
+        """Chains Result-returning function.
+
+        Args:
+            fn: Function returning Result.
+
+        Returns:
+            Result from fn.
+
+        Raises:
+            Panic: If fn throws.
+
+        Example:
+            >>> Ok(2).and_then(lambda x: Ok(x * 2) if x > 0 else Err("negative"))
+            Ok(4)
+        """
         return try_or_panic(lambda: fn(self.value), "Ok.and_then failed")
 
     async def and_then_async(
         self, fn: Callable[[A], Awaitable[Result[B, F]]]
     ) -> "Result[B, E | F]":
+        """Chains async Result-returning function.
+
+        Args:
+            fn: Async function returning Result.
+
+        Returns:
+            Result from fn.
+
+        Raises:
+            Panic: If fn throws or rejects.
+
+        Example:
+            >>> await Ok(1).and_then_async(async_fetch_data)
+            Ok(...)
+        """
         return await try_or_panic_async(
             lambda: fn(self.value), "Ok.and_then_async failed"
         )
 
     def match(self, cases: Matcher[A, B, E, F]) -> B | F:
+        """Pattern matches on Result.
+
+        Args:
+            cases: Ok and err handlers.
+
+        Returns:
+            Result of ok handler.
+
+        Raises:
+            Panic: If handler throws.
+
+        Example:
+            >>> Ok(2).match({"ok": lambda x: x * 2, "err": lambda e: 0})
+            4
+        """
         def call_handler() -> B | F:
             return cases["ok"](self.value)
 
         return try_or_panic(call_handler, "Ok.match failed")
 
     def serialize(self) -> SerializedOk[A]:
+        """Converts to plain dict for serialization.
+
+        Returns:
+            Dict with status and value.
+
+        Example:
+            >>> Ok(42).serialize()
+            {'status': 'ok', 'value': 42}
+        """
         return SerializedOk(status="ok", value=self.value)
 
     def is_ok(self) -> bool:
@@ -269,6 +434,18 @@ class Ok(Result[A, E]):
 
 
 class Err(Result[A, E]):
+    """Error result variant.
+
+    Args:
+        value: Error value.
+
+    Example:
+        >>> result = Err("failed")
+        >>> result.value
+        'failed'
+        >>> result.status
+        'err'
+    """
     __slots__ = ("value",)
     __match_args__ = ("value",)
 
@@ -280,43 +457,158 @@ class Err(Result[A, E]):
         return "err"
 
     def map(self, fn: Callable[[A], B]) -> "Err[B, E]":
+        """No-op on Err, returns self with new phantom T.
+
+        Args:
+            fn: Ignored.
+
+        Returns:
+            Self.
+        """
         return cast("Err[B, E]", self)
 
     def map_err(self, fn: Callable[[E], F]) -> "Err[A, F]":
+        """Transforms error value.
+
+        Args:
+            fn: Transformation function.
+
+        Returns:
+            Err with transformed error.
+
+        Raises:
+            Panic: If fn throws.
+
+        Example:
+            >>> Err("fail").map_err(lambda e: f"Error: {e}")
+            Err("Error: fail")
+        """
         return try_or_panic(lambda: Err(fn(self.value)), "Err.map_err failed")
 
     def unwrap(self, message: Optional[str] = None) -> NoReturn:
+        """Panics with optional message.
+
+        Args:
+            message: Error message.
+
+        Raises:
+            Panic: Always panics.
+
+        Example:
+            >>> Err("fail").unwrap()
+            Panic: unwrap called on Err: 'fail'
+        """
         panic(message or f"unwrap called on Err: {self.value!r}")
 
     def unwrap_or(self, fallback: B) -> B:
+        """Returns fallback value.
+
+        Args:
+            fallback: Fallback value.
+
+        Returns:
+            Fallback.
+
+        Example:
+            >>> Err("fail").unwrap_or(42)
+            42
+        """
         return fallback
 
     def unwrap_err(self, message: Optional[str] = None) -> E:
+        """Extracts error value.
+
+        Args:
+            message: Ignored.
+
+        Returns:
+            The error value.
+
+        Example:
+            >>> Err("fail").unwrap_err()
+            'fail'
+        """
         return self.value
 
     def tap(self, fn: Callable[[A], None]) -> "Err[A, E]":
+        """No-op on Err, returns self.
+
+        Args:
+            fn: Ignored.
+
+        Returns:
+            Self.
+        """
         return self
 
     async def tap_async(self, fn: Callable[[A], Awaitable[None]]) -> "Err[A, E]":
+        """No-op on Err, returns Promise of self.
+
+        Args:
+            fn: Ignored.
+
+        Returns:
+            Self.
+        """
         return self
 
     def and_then(self, fn: Callable[[A], Result[B, F]]) -> "Err[A, E]":
+        """No-op on Err, returns self with widened error type.
+
+        Args:
+            fn: Ignored.
+
+        Returns:
+            Self.
+        """
         return try_or_panic(lambda: cast("Err[A, E]", self), "Err.and_then failed")
 
     async def and_then_async(
         self, fn: Callable[[A], Awaitable[Result[B, F]]]
     ) -> "Err[A, E]":
+        """No-op on Err, returns self with widened error type.
+
+        Args:
+            fn: Ignored.
+
+        Returns:
+            Self.
+        """
         return try_or_panic(
             lambda: cast("Err[A, E]", self), "Err.and_then_async failed"
         )
 
     def match(self, cases: Matcher[A, B, E, F]) -> B | F:
+        """Pattern matches on Result.
+
+        Args:
+            cases: Ok and err handlers.
+
+        Returns:
+            Result of err handler.
+
+        Raises:
+            Panic: If handler throws.
+
+        Example:
+            >>> Err("fail").match({"ok": lambda x: x, "err": lambda e: len(e)})
+            4
+        """
         def call_handler() -> B | F:
             return cases["err"](self.value)
 
         return try_or_panic(call_handler, "Err.match failed")
 
     def serialize(self) -> SerializedErr[E]:
+        """Converts to plain dict for serialization.
+
+        Returns:
+            Dict with status and error.
+
+        Example:
+            >>> Err("fail").serialize()
+            {'status': 'err', 'value': 'fail'}
+        """
         value = str(self.value) if isinstance(self.value, Exception) else self.value
         return SerializedErr(status="err", value=value)
 
@@ -354,6 +646,24 @@ def map(
     result: Result[A, E] | Callable[[A], B],
     fn: Callable[[A], B] | None = None,
 ) -> Result[B, E] | Callable[[Result[A, E]], Result[B, E]]:
+    """Transforms success value, passes error through.
+
+    Supports data-first and data-last styles.
+
+    Args:
+        result: Result or transformation function.
+        fn: Transformation function (data-first) or None (data-last).
+
+    Returns:
+        Transformed Result or curried function.
+
+    Example:
+        >>> map(Ok(2), lambda x: x * 2)
+        Ok(4)
+        >>> mapper = map(lambda x: x * 2)
+        >>> mapper(Ok(2))
+        Ok(4)
+    """
     if fn is None:
         _fn = cast(Callable[[A], B], result)
         return lambda r: try_or_panic(lambda: r.map(_fn), "map failed")
@@ -372,6 +682,21 @@ def map_err(
     result: Result[A, E] | Callable[[E], F],
     fn: Callable[[E], F] | None = None,
 ) -> Result[A, F] | Callable[[Result[A, E]], Result[A, F]]:
+    """Transforms error value, passes success through.
+
+    Supports data-first and data-last styles.
+
+    Args:
+        result: Result or transformation function.
+        fn: Transformation function (data-first) or None (data-last).
+
+    Returns:
+        Transformed Result or curried function.
+
+    Example:
+        >>> map_err(Err("fail"), lambda e: f"Error: {e}")
+        Err("Error: fail")
+    """
     if fn is None:
         _fn = cast(Callable[[E], F], result)
         return lambda r: try_or_panic(lambda: r.map_err(_fn), "map_err failed")
@@ -392,6 +717,22 @@ def tap(
     result: Result[A, E] | Callable[[A], None],
     fn: Callable[[A], None] | None = None,
 ) -> Result[A, E] | Callable[[Result[A, E]], Result[A, E]]:
+    """Runs side effect on success value, returns original result.
+
+    Supports data-first and data-last styles.
+
+    Args:
+        result: Result or side effect function.
+        fn: Side effect function (data-first) or None (data-last).
+
+    Returns:
+        Original Result or curried function.
+
+    Example:
+        >>> tap(Ok(2), print)
+        2
+        Ok(2)
+    """
     if fn is None:
         _fn = cast(Callable[[A], None], result)
         return lambda r: try_or_panic(lambda: r.tap(_fn), "tap failed")
@@ -417,6 +758,21 @@ def tap_async(
     Coroutine[None, None, Result[A, E]]
     | Callable[[Result[A, E]], Coroutine[None, None, Result[A, E]]]
 ):
+    """Runs async side effect on success value, returns original result.
+
+    Supports data-first and data-last styles.
+
+    Args:
+        result: Result or async side effect function.
+        fn: Async side effect function (data-first) or None (data-last).
+
+    Returns:
+        Promise of original Result or curried function.
+
+    Example:
+        >>> await tap_async(Ok(2), async_log)
+        Ok(2)
+    """
     if fn is None:
         _fn = cast(Callable[[A], Awaitable[None]], result)
         return lambda r: try_or_panic_async(
@@ -428,6 +784,22 @@ def tap_async(
 
 
 def unwrap(result: Result[A, E], message: Optional[str] = None) -> A:
+    """Extracts value or panics.
+
+    Args:
+        result: Result to unwrap.
+        message: Optional panic message.
+
+    Returns:
+        The value.
+
+    Raises:
+        Panic: If result is Err.
+
+    Example:
+        >>> unwrap(Ok(42))
+        42
+    """
     return cast(A, result.unwrap(message))
 
 
@@ -447,6 +819,21 @@ def and_then(
     result: Result[A, E] | Callable[[A], Result[B, F]],
     fn: Callable[[A], Result[B, F]] | None = None,
 ) -> Result[B, E | F] | Callable[[Result[A, E]], Result[B, E | F]]:
+    """Chains Result-returning function on success.
+
+    Supports data-first and data-last styles.
+
+    Args:
+        result: Result or chaining function.
+        fn: Chaining function (data-first) or None (data-last).
+
+    Returns:
+        Chained Result or curried function.
+
+    Example:
+        >>> and_then(Ok(2), lambda x: Ok(x * 2) if x > 0 else Err("neg"))
+        Ok(4)
+    """
     if fn is None:
         _fn = cast(Callable[[A], Result[B, F]], result)
         return lambda r: cast(
@@ -486,6 +873,21 @@ def and_then_async(
     Coroutine[None, None, Result[B, E | F]]
     | Callable[[Result[A, E]], Coroutine[None, None, Result[B, E | F]]]
 ):
+    """Chains async Result-returning function on success.
+
+    Supports data-first and data-last styles.
+
+    Args:
+        result: Result or async chaining function.
+        fn: Async chaining function (data-first) or None (data-last).
+
+    Returns:
+        Promise of chained Result or curried function.
+
+    Example:
+        >>> await and_then_async(Ok(1), async_fetch_data)
+        Ok(...)
+    """
     if fn is None:
         _fn = cast(Callable[[A], Awaitable[Result[B, F]]], result)
         return lambda r: cast(
@@ -522,6 +924,21 @@ def match(
     result: Result[A, E] | Matcher[A, B, E, B],
     handlers: Matcher[A, B, E, B] | None = None,
 ) -> B | Callable[[Result[A, E]], B]:
+    """Pattern matches on Result.
+
+    Supports data-first and data-last styles.
+
+    Args:
+        result: Result or handlers dict.
+        handlers: Handlers dict (data-first) or None (data-last).
+
+    Returns:
+        Result of matched handler or curried function.
+
+    Example:
+        >>> match(Ok(2), {"ok": lambda x: x * 2, "err": lambda e: 0})
+        4
+    """
     if handlers is None:
         _handlers = cast(Matcher[A, B, E, B], result)
 
@@ -539,6 +956,18 @@ def match(
 
 
 def try_or_panic(fn: Callable[[], A], message: str) -> A:
+    """Executes fn, panics if it throws.
+
+    Args:
+        fn: Function to execute.
+        message: Panic message.
+
+    Returns:
+        Result of fn.
+
+    Raises:
+        Panic: If fn throws.
+    """
     try:
         return fn()
     except Exception as e:
@@ -546,6 +975,18 @@ def try_or_panic(fn: Callable[[], A], message: str) -> A:
 
 
 async def try_or_panic_async(fn: Callable[[], Awaitable[A]], message: str) -> A:
+    """Async version of try_or_panic.
+
+    Args:
+        fn: Async function to execute.
+        message: Panic message.
+
+    Returns:
+        Result of fn.
+
+    Raises:
+        Panic: If fn throws or rejects.
+    """
     try:
         return await fn()
     except Exception as e:
