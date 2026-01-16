@@ -237,7 +237,10 @@ class Ok(Result[A, E]):
         )
 
     def match(self, cases: Matcher[A, B, E, F]) -> B | F:
-        return cases["ok"](self.value)
+        def call_handler() -> B | F:
+            return cases["ok"](self.value)
+
+        return try_or_panic(call_handler, "Ok.match failed")
 
     def serialize(self) -> SerializedOk[A]:
         return SerializedOk(status="ok", value=self.value)
@@ -307,7 +310,10 @@ class Err(Result[A, E]):
         )
 
     def match(self, cases: Matcher[A, B, E, F]) -> B | F:
-        return cases["err"](self.value)
+        def call_handler() -> B | F:
+            return cases["err"](self.value)
+
+        return try_or_panic(call_handler, "Err.match failed")
 
     def serialize(self) -> SerializedErr[E]:
         value = str(self.value) if isinstance(self.value, Exception) else self.value
@@ -502,13 +508,13 @@ def and_then_async(
 
 
 @overload
-def match(result: Result[A, E], handlers: Matcher[A, B, E, B]) -> B: ...
-
-
-@overload
 def match(
     result: Matcher[A, B, E, B],
 ) -> Callable[[Result[A, E]], B]: ...
+
+
+@overload
+def match(result: Result[A, E], handlers: Matcher[A, B, E, B]) -> B: ...
 
 
 def match(
@@ -517,8 +523,18 @@ def match(
 ) -> B | Callable[[Result[A, E]], B]:
     if handlers is None:
         _handlers = cast(Matcher[A, B, E, B], result)
-        return lambda r: r.match(_handlers)
-    return cast(Result[A, E], result).match(handlers)
+
+        def apply_match(r: Result[A, E]) -> B:
+            return try_or_panic(lambda: r.match(_handlers), "match failed")
+
+        return apply_match
+
+    def apply_handlers() -> B:
+        return try_or_panic(
+            lambda: cast(Result[A, E], result).match(handlers), "match failed"
+        )
+
+    return apply_handlers()
 
 
 def try_or_panic(fn: Callable[[], A], message: str) -> A:

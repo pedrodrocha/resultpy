@@ -694,6 +694,18 @@ class TestResult:
             )
             assert result == "ERROR"
 
+        def test_throws_panic_when_ok_handler_throws(self) -> None:
+            ok: Ok[int, str] = Ok(42)
+            with pytest.raises(Panic) as exc_info:
+                ok.match({"ok": lambda x: 1 // 0, "err": lambda e: 0})
+            assert "match" in str(exc_info.value)
+
+        def test_throws_panic_when_err_handler_throws(self) -> None:
+            err: Err[int, str] = Err("error")
+            with pytest.raises(Panic) as exc_info:
+                err.match({"ok": lambda x: 0, "err": lambda e: 1 // 0})
+            assert "match" in str(exc_info.value)
+
     class TestMatchTopLevel:
         def test_data_first_matches_ok(self) -> None:
             ok: Ok[int, str] = Ok(42)
@@ -743,6 +755,44 @@ class TestResult:
 
             assert result_ok == "10"
             assert result_err == "error"
+
+        def test_data_first_throws_panic_when_ok_handler_throws(self) -> None:
+            ok: Ok[int, str] = Ok(42)
+            with pytest.raises(Panic) as exc_info:
+                match(ok, {"ok": lambda x: 1 // 0, "err": lambda e: 0})
+            assert "match" in str(exc_info.value)
+
+        def test_data_first_throws_panic_when_err_handler_throws(self) -> None:
+            err: Err[int, str] = Err("error")
+            with pytest.raises(Panic) as exc_info:
+                match(err, {"ok": lambda x: 0, "err": lambda e: 1 // 0})
+            assert "match" in str(exc_info.value)
+
+        def test_data_last_throws_panic_when_ok_handler_throws(self) -> None:
+            def ok_handler(x: int) -> int:
+                return 1 // 0
+
+            def err_handler(e: str) -> int:
+                return 0
+
+            matcher = match({"ok": ok_handler, "err": err_handler})
+            ok: Ok[int, str] = Ok(42)
+            with pytest.raises(Panic) as exc_info:
+                matcher(ok)
+            assert "match" in str(exc_info.value)
+
+        def test_data_last_throws_panic_when_err_handler_throws(self) -> None:
+            def ok_handler(x: int) -> int:
+                return 0
+
+            def err_handler(e: str) -> int:
+                return 1 // 0
+
+            matcher = match({"ok": ok_handler, "err": err_handler})
+            err: Err[int, str] = Err("error")
+            with pytest.raises(Panic) as exc_info:
+                matcher(err)
+            assert "match" in str(exc_info.value)
 
     class TestSerialize:
         def test_ok_serialization(self) -> None:
