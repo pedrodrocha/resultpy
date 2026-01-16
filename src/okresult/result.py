@@ -14,9 +14,6 @@ from typing import (
 )
 from abc import ABC, abstractmethod
 
-"""
-Copied from src/pyresult/result.py to preserve full API
-"""
 
 T = TypeVar("T")
 A = TypeVar("A", covariant=True)
@@ -50,8 +47,7 @@ class Result(Generic[A, E], ABC):
 
     @property
     @abstractmethod
-    def status(self) -> Literal["ok", "err"]:
-        ...
+    def status(self) -> Literal["ok", "err"]: ...
 
     @staticmethod
     def ok(value: T) -> "Ok[T, Never]":
@@ -62,60 +58,47 @@ class Result(Generic[A, E], ABC):
         return Err(value)
 
     @abstractmethod
-    def is_ok(self) -> bool:
-        ...
+    def is_ok(self) -> bool: ...
 
     @abstractmethod
-    def is_err(self) -> bool:
-        ...
+    def is_err(self) -> bool: ...
 
     @abstractmethod
-    def map(self, fn: Callable[[A], B]) -> "Result[B, E]":
-        ...
+    def map(self, fn: Callable[[A], B]) -> "Result[B, E]": ...
 
     @abstractmethod
-    def map_err(self, fn: Callable[[E], F]) -> "Result[A, F]":
-        ...
+    def map_err(self, fn: Callable[[E], F]) -> "Result[A, F]": ...
 
     @abstractmethod
-    def unwrap(self, message: Optional[str] = None) -> Union[A, object] | Never:
-        ...
+    def unwrap(self, message: Optional[str] = None) -> Union[A, object] | Never: ...
 
     @abstractmethod
-    def unwrap_or(self, fallback: B) -> Union[A, B]:
-        ...
+    def unwrap_or(self, fallback: B) -> Union[A, B]: ...
 
     @abstractmethod
-    def unwrap_err(self, message: Optional[str] = None) -> E:
-        ...
+    def unwrap_err(self, message: Optional[str] = None) -> E: ...
 
     @abstractmethod
-    def tap(self, fn: Callable[[A], None]) -> "Result[A, E]":
-        ...
+    def tap(self, fn: Callable[[A], None]) -> "Result[A, E]": ...
 
     @abstractmethod
     async def tap_async(
         self, fn: Callable[[A], Coroutine[None, None, None]]
-    ) -> "Result[A, E]":
-        ...
+    ) -> "Result[A, E]": ...
 
     @abstractmethod
-    def and_then(self, fn: Callable[[A], "Result[B, F]"]) -> "Result[B, E | F]":
-        ...
+    def and_then(self, fn: Callable[[A], "Result[B, F]"]) -> "Result[B, E | F]": ...
 
     @abstractmethod
     async def and_then_async(
         self, fn: Callable[[A], Coroutine[None, None, "Result[B, E]"]]
-    ) -> "Result[B, E]":
-        ...
+    ) -> "Result[B, E]": ...
 
     @abstractmethod
-    def match(self, cases: Matcher[A, B, E, F]) -> B | F:
-        ...
+    def match(self, cases: Matcher[A, B, E, F]) -> B | F: ...
 
     @abstractmethod
-    def serialize(self) -> SerializedResult[A, E]:
-        ...
+    def serialize(self) -> SerializedResult[A, E]: ...
 
     @staticmethod
     def hydrate(data: object) -> "Result[object, object] | None":

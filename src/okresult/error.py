@@ -1,10 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional, TypeVar, Dict, Callable, Union
 
-"""
-Copied from src/pyresult/error.py to preserve full API
-"""
-
 A = TypeVar("A")
 E = TypeVar("E", bound="TaggedError")
 F = TypeVar("F", bound="TaggedError")
@@ -108,10 +104,4 @@ def is_panic(value: object) -> bool:
 
 
 def panic(message: str, cause: Optional[object] = None) -> None:
-    """
-    Raise a Panic error with the given message and optional cause.
-    :param message: The panic message.
-    :param cause: The optional cause of the panic.
-    :raises Panic: Always raises a Panic error.
-    """
     raise Panic(message, cause)

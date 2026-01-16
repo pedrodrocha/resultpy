@@ -10,34 +10,24 @@ E = TypeVar("E")
 
 
 class RetryConfig(TypedDict, total=False):
-    """Retry configuration for sync operations."""
-
     times: int
 
 
 class RetryConfigAsync(TypedDict, total=False):
-    """Retry configuration for async operations with delays."""
-
     times: int
     delay_ms: int
     backoff: Literal["constant", "linear", "exponential"]
 
 
 class SafeConfig(TypedDict, total=False):
-    """Configuration for safe()."""
-
     retry: RetryConfig
 
 
 class SafeConfigAsync(TypedDict, total=False):
-    """Configuration for safe_async()."""
-
     retry: RetryConfigAsync
 
 
 class SafeOptions(TypedDict, Generic[A, E]):
-    """Options for safe/safe_async with custom error mapping."""
-
     try_: Callable[[], A]
     catch: Callable[[Exception], E]
 
