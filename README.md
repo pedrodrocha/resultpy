@@ -41,6 +41,7 @@ message = parsed.match({
 
 ## Contents
 
+- [Typed Lambda Expressions](#typed-lambda-expressions)
 - [Creating Results](#creating-results)
 - [Transforming Results](#transforming-results)
 - [Handling Errors](#handling-errors)
@@ -49,6 +50,7 @@ message = parsed.match({
 - [Retry Support](#retry-support)
 - [Tagged Errors](#tagged-errors)
 - [Serialization](#serialization) 
+- [Typed Lambda Expressions](#typed-lambda-expressions)
 - [API Reference](#api-reference)
 
 ## Creating Results
@@ -380,6 +382,36 @@ typed: Result[int, ValueError] | None = Result.hydrate_as(
 )
 
 ```
+
+## Typed Lambda Expressions
+
+Python doesn't support type annotations inside `lambda` expressions, making it difficult to express precise types for inline functions. The `fn` helper provides a way to create typed callables using subscript syntax, achieving a close semantic equivalent to a "typed lambda" in Python.
+
+```python
+from okresult import fn
+
+# Explicitly typed lambda
+double = fn[int, int](lambda x: x * 2)
+add_one = fn[int, int](lambda x: x + 1)
+
+# Works with Result transformations
+result = Result.ok(5).map(double)  # Ok(10)
+
+# Works with match handlers
+message = result.match({
+    "ok": fn[int, str](lambda x: f"Value: {x}"),
+    "err": fn[str, str](lambda e: f"Error: {e}"),
+})
+```
+
+At runtime, `fn` returns the provided callable unchanged (no wrapping, allocation, or indirection). All type information is enforced statically by type checkers (e.g., pyright, mypy). The above `double` example is equivalent, from a typing perspective, to defining a named function:
+
+```python
+def double(x: int) -> int:
+    return x * 2
+```
+
+Instead of requiring verbose named functions or explicit `Callable` annotations, `fn` shifts the type declaration to the call boundary while keeping lambdas concise and idiomatic. It's particularly useful in functional-style APIs (e.g., `map`, `and_then`, `match`) where lambdas are common and precise typing significantly improves developer experience.
 
 ## API Reference
 
