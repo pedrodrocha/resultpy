@@ -1,49 +1,31 @@
-from typing import Callable, TypeVar
+from typing import Callable, TypeVar, Generic, overload
 
-"""
-Generic Input Type A
-"""
 A = TypeVar("A")
-
-"""
-Generic Output Type B
-"""
 B = TypeVar("B")
 
 
-def fn(f: Callable[[A], B]) -> Callable[[A], B]:
-    """Typed callable factory for lambdas.
+class fn(Generic[A, B]):
+    """Creates a typed callable from a lambda or function.
 
-    This is the closest semantic equivalent I could getto a typed lambda in Python.
-    The type is declared at the factory boundary, not inside the lambda.
-
-    Usage:
-        >>> from okresult import fn, map, Ok
-        >>>
-        >>> # Type inference works automatically
-        >>> double = fn(lambda x: x * 2)
-        >>> result = Ok(5).map(double)
-        >>>
-        >>> # For explicit typing, use a regular function with type hints
-        >>> def double_func(x: int) -> int:
-        ...     return x * 2
-        >>> double = fn(double_func)
-
-    Notes:
-        - Known limitations:
-            - Inline parameter annotations in lambdas (Python limitation)
-            - New syntax (Python limitation)
-            - Subscriptable syntax like fn[T, U] (requires type suppressions)
+    Allows explicit generic typing of anonymous functions using subscript
+    syntax, providing a close semantic equivalent to a typed lambda.
 
     Args:
-        f: A callable function from A to B.
+        f: A callable from ``A`` to ``B``.
 
     Returns:
-        The same function with preserved type information.
+        The same callable with its type fixed to ``Callable[[A], B]``.
 
-    Note:
-        Python's typing lives at boundaries, not inside expressions.
-        This factory provides the boundary where types are declared.
-        For explicit types, define a regular function with annotations.
+    Example:
+        >>> double = fn[int, int](lambda x: x * 2)
+        >>> Ok(5).map(double)
+        Ok(10)
     """
-    return f
+
+    @overload
+    def __new__(cls, f: Callable[[A], B]) -> Callable[[A], B]: ...
+    @overload
+    def __new__(cls, f: Callable[..., B]) -> Callable[..., B]: ...
+
+    def __new__(cls, f: Callable[..., object]) -> Callable[..., object]:
+        return f
