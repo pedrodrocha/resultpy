@@ -162,6 +162,9 @@ class Result(Generic[A, E], ABC):
             if not isinstance(returned, Result):
                 panic("Generator function must return a Result")
             return cast("Result[A, E]", returned)
+        except BaseException as e:
+            # Generator body threw - this is a programming error
+            panic("Exception in generator", e)
 
     def is_ok(self) -> bool:
         """Returns True if result is Ok.

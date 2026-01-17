@@ -992,3 +992,34 @@ class TestResult:
                 return Result.ok(c)
 
             assert Result.gen(compute).unwrap() == 5.0
+
+        def test_short_circuits_on_error(self) -> None:
+            def parse_int(value: str) -> Result[int, str]:
+                return Result.err("Cannot parse")
+
+            def divide(a: int, b: int) -> Result[float, str]:
+                return Result.ok(a / b)
+
+            def compute() -> Do[float, str]:
+                a: int = yield parse_int("5")
+                b: int = yield parse_int("10")
+                c: float = yield divide(a, b)
+                return Result.ok(c)
+
+            assert Result.gen(compute).unwrap_err() == "Cannot parse"
+
+        def test_panics_on_exception_during_execution(self) -> None:
+            def parse_int(value: str) -> Result[int, str]:
+                return Result.ok(int(value))
+
+            def divide(a: int, b: int) -> Result[float, str]:
+                return Result.ok(a / b)
+
+            def compute() -> Do[float, str]:
+                a: int = yield parse_int("1")
+                b: int = yield parse_int("0")
+                c: float = yield divide(a, b)
+                return Result.ok(c)
+
+            with pytest.raises(Panic):
+                Result.gen(compute)
