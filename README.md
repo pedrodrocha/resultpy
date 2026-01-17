@@ -4,6 +4,7 @@
 [![Python version](https://img.shields.io/pypi/pyversions/okresult.svg)](https://pypi.org/project/okresult/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/pedrodrocha/okresult/actions/workflows/test.yml/badge.svg)](https://github.com/pedrodrocha/okresult/actions/workflows/test.yml)
+![Coverage](./coverage.svg)
 [![Type checking: Pyright](https://img.shields.io/badge/type%20checking-Pyright-blue.svg)](https://github.com/microsoft/pyright)
 [![Code style: Black](https://img.shields.io/badge/code%20style-Black-000000.svg)](https://github.com/psf/black)
 
