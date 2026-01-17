@@ -1,3 +1,4 @@
+import asyncio
 from typing import Never, Union
 from okresult import (
     Result,
@@ -483,6 +484,35 @@ class TestResult:
                 called is False
             )  # Function should NOT be called when starting with Err
             assert result.is_err()
+
+    class TestAwait:
+        @pytest.mark.asyncio
+        async def test_awaits_ok_result(self) -> None:
+            async def get_ok() -> Result[int, str]:
+                return Result.ok(42)
+
+            result = await Result.await_(get_ok())
+            assert result.is_ok()
+            assert result.unwrap() == 42
+
+        @pytest.mark.asyncio
+        async def test_awaits_err_result(self) -> None:
+            async def get_err() -> Result[int, str]:
+                return Result.err("failed")
+
+            result = await Result.await_(get_err())
+            assert result.is_err()
+            assert result.unwrap_err() == "failed"
+
+        @pytest.mark.asyncio
+        async def test_awaits_coroutine(self) -> None:
+            async def async_compute() -> Result[int, str]:
+                await asyncio.sleep(0.01)  # Simulate async work
+                return Result.ok(100)
+
+            result = await Result.await_(async_compute())
+            assert result.is_ok()
+            assert result.unwrap() == 100
 
     class TestUnwrapErr:
         def test_returns_error_for_err(self) -> None:
@@ -1144,10 +1174,11 @@ class TestResult:
             with pytest.raises(Panic) as exc_info:
                 Result.gen(compute)
 
-            assert "Generator cleanup threw" in str(exc_info.value) or "Exception in generator" in str(exc_info.value)
+            assert "Generator cleanup threw" in str(
+                exc_info.value
+            ) or "Exception in generator" in str(exc_info.value)
             cause = exc_info.value.cause
             if isinstance(cause, Panic):
                 cause = cause.cause
             assert isinstance(cause, ValueError)
             assert str(cause) == "cleanup failed on success"
-

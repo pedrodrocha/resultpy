@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 
 from .error import panic, Panic
 
+
 """
 Type variable for method parameters
 """
@@ -135,6 +136,20 @@ class Result(Generic[A, E], ABC):
             Err('failed')
         """
         return Err(value)
+
+    @staticmethod
+    async def await_[A_T, E_T](
+        awaitable: Awaitable["Result[A_T, E_T]"],
+    ) -> "Result[A_T, E_T]":
+        """Await a Result.
+
+        Args:
+            awaitable: Awaitable Result.
+
+        Returns:
+            Result.
+        """
+        return await awaitable
 
     @staticmethod
     def gen[GenA, GenE](
