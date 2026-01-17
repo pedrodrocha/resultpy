@@ -18,7 +18,7 @@ from typing import (
 )
 from abc import ABC, abstractmethod
 
-from .error import panic
+from .error import panic, Panic
 
 """
 Type variable for method parameters
@@ -179,12 +179,17 @@ class Result(Generic[A, E], ABC):
             gen = fn()
 
         try:
-            # Prime the generator
+
             yielded = gen.send(None)
 
             while True:
                 if yielded.is_err():
-                    # short-circuit immediately
+                    # short-circuit immediately - close generator to run finally blocks
+                    try:
+                        gen.close()
+                    except BaseException as cleanup_error:
+                        # If cleanup throws, it's a programming error
+                        panic("Generator cleanup threw", cleanup_error)
                     return cast("Result[GenA, Any]", yielded)
 
                 # unwrap Ok and send value back
@@ -197,6 +202,8 @@ class Result(Generic[A, E], ABC):
             return cast("Result[GenA, Any]", returned)
         except BaseException as e:
             # Generator body threw - this is a programming error
+            if isinstance(e, Panic):
+                raise  # Re-raise Panic as-is
             panic("Exception in generator", e)
 
     def is_ok(self) -> bool:

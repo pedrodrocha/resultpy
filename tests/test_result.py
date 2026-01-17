@@ -1059,3 +1059,67 @@ class TestResult:
 
             result = Result.gen(compute, ctx)
             assert result.unwrap() == 50
+
+        def test_runs_finally_blocks_when_short_circuiting(self) -> None:
+            finally_called = False
+
+            def get_a() -> Result[int, str]:
+                return Result.err("a failed")
+
+            def compute() -> Do[int, str]:
+                try:
+                    yield get_a()
+                    return Result.ok(1)
+                finally:
+                    nonlocal finally_called
+                    finally_called = True
+
+            result = Result.gen(compute)
+            assert result.is_err()
+            assert finally_called is True
+
+        def test_runs_finally_blocks_on_success_path(self) -> None:
+            finally_called = False
+
+            def compute() -> Do[int, Never]:
+                try:
+                    a: int = yield Result.ok(1)
+                    return Result.ok(a + 1)
+                finally:
+                    nonlocal finally_called
+                    finally_called = True
+
+            result = Result.gen(compute)
+            assert result.is_ok()
+            assert result.unwrap() == 2
+            assert finally_called is True
+
+        def test_panics_when_generator_does_not_return_result(self) -> None:
+            def compute() -> Do[int, Never]:
+                yield Result.ok(1)
+                return 42  # type: ignore[return-value]  # Not a Result! Testing panic
+
+            with pytest.raises(Panic) as exc_info:
+                Result.gen(compute)
+            assert "Generator function must return a Result" in str(exc_info.value)
+
+        def test_panics_when_finally_block_throws(self) -> None:
+            def compute() -> Do[int, str]:
+                try:
+                    yield Result.err("original error")
+                    return Result.ok(1)
+                finally:
+                    raise ValueError("cleanup failed")
+
+            with pytest.raises(Panic) as exc_info:
+                Result.gen(compute)
+            # Cleanup error is wrapped: Panic("Exception in generator") -> Panic("Generator cleanup threw") -> ValueError
+            assert "Exception in generator" in str(
+                exc_info.value
+            ) or "Generator cleanup threw" in str(exc_info.value)
+            # Get the actual ValueError from the nested cause
+            cause = exc_info.value.cause
+            if isinstance(cause, Panic):
+                cause = cause.cause
+            assert isinstance(cause, ValueError)
+            assert str(cause) == "cleanup failed"
