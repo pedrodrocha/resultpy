@@ -1009,7 +1009,7 @@ class TestResult:
 
             assert Result.gen(compute).unwrap_err() == "Cannot parse"
 
-        def test_panics_on_body_execution_before_yield(self) -> None:
+        def test_panics_when_computation_throws_during_execution(self) -> None:
             def parse_int(value: str) -> Result[int, str]:
                 return Result.ok(int(value))
 
@@ -1019,7 +1019,7 @@ class TestResult:
             def compute() -> Do[float, str]:
                 a: int = yield parse_int("1")
                 b: int = yield parse_int("0")
-                c: float = yield divide(a, b)
+                c: float = yield divide(a, b)  # Division by zero throws here
                 return Result.ok(c)
 
             with pytest.raises(Panic):
@@ -1103,7 +1103,7 @@ class TestResult:
                 Result.gen(compute)
             assert "Generator function must return a Result" in str(exc_info.value)
 
-        def test_panics_when_finally_block_throws(self) -> None:
+        def test_panics_when_finally_block_throws_on_error_path(self) -> None:
             def compute() -> Do[int, str]:
                 try:
                     yield Result.err("original error")
@@ -1113,13 +1113,41 @@ class TestResult:
 
             with pytest.raises(Panic) as exc_info:
                 Result.gen(compute)
-            # Cleanup error is wrapped: Panic("Exception in generator") -> Panic("Generator cleanup threw") -> ValueError
             assert "Exception in generator" in str(
                 exc_info.value
             ) or "Generator cleanup threw" in str(exc_info.value)
-            # Get the actual ValueError from the nested cause
             cause = exc_info.value.cause
             if isinstance(cause, Panic):
                 cause = cause.cause
             assert isinstance(cause, ValueError)
             assert str(cause) == "cleanup failed"
+
+        def test_panics_when_generator_body_throws_before_yield(self) -> None:
+            def compute():
+                raise ValueError("threw before yield")
+                yield Result.ok(1)  # unreachable, to mock a generator
+
+            with pytest.raises(Panic) as exc_info:
+                Result.gen(compute)
+            assert "Exception in generator" in str(exc_info.value)
+            assert isinstance(exc_info.value.cause, ValueError)
+            assert str(exc_info.value.cause) == "threw before yield"
+
+        def test_panics_when_finally_block_throws_on_success_path(self) -> None:
+            def compute() -> Do[int, Never]:
+                try:
+                    return Result.ok(1)
+                finally:
+                    raise ValueError("cleanup failed on success")
+                yield Result.ok(0)  # unreachable, to mock a generator
+
+            with pytest.raises(Panic) as exc_info:
+                Result.gen(compute)
+
+            assert "Generator cleanup threw" in str(exc_info.value) or "Exception in generator" in str(exc_info.value)
+            cause = exc_info.value.cause
+            if isinstance(cause, Panic):
+                cause = cause.cause
+            assert isinstance(cause, ValueError)
+            assert str(cause) == "cleanup failed on success"
+
