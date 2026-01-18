@@ -6,6 +6,7 @@
 
 - `Result.gen()` method for generator-based Result composition (do-notation).
 - `Result.gen_async()` method for async generator-based Result composition (async do-notation).
+- `Result.flatten()` method for flattening nested Results.
 
 ### Changed
 
