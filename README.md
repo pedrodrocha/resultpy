@@ -104,6 +104,7 @@ result_map(fn[int, int](lambda x: x + 1))(result)  # Pipeable
 
 ```python
 from okresult import Result, TaggedError, fn
+from typing import Union, TypeAlias
 
 err_result: Result[int, ValueError] = Result.err(ValueError("invalid"))
 
@@ -121,14 +122,31 @@ class NotFoundError(TaggedError):
         super().__init__(f"Not found: {id}")
         self.id = id
 
-def fetch_user(id: str) -> Result[dict[str, str], NotFoundError]:
+class ValidationError(TaggedError):
+    TAG = "ValidationError"
+    __slots__ = ("field",)
+    
+    def __init__(self, field: str) -> None:
+        super().__init__(f"Invalid: {field}")
+        self.field = field
+
+AppError: TypeAlias = Union[NotFoundError, ValidationError]
+
+def fetch_user(id: str) -> Result[dict[str, str], AppError]:
     if id == "valid":
         return Result.ok({"name": "John", "id": id})
+    if not id:
+        return Result.err(ValidationError("id"))
     return Result.err(NotFoundError(id))
 
+default_user = {"name": "Default User"}
+
+
 result = fetch_user("123").match({
-    "ok": fn[dict[str, str], Result[dict[str, str], NotFoundError]](lambda user: Result.ok(user)),  # Pass through success
-    "err": fn[NotFoundError, Result[dict[str, str], NotFoundError]](lambda e: Result.ok({"name": "Default User"}))
+    "ok": fn[dict[str, str], Result[dict[str, str], AppError]](lambda user: Result.ok(user)),
+    "err": fn[AppError, Result[dict[str, str], AppError]](
+        lambda e: Result.ok(default_user) if e.tag == "NotFoundError" else Result.err(e)
+    )
 })
 
 

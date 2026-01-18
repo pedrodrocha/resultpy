@@ -14,6 +14,29 @@ from okresult import (
 import json
 import asyncio
 import pytest
+from typing import Union, TypeAlias
+
+
+# Error types for testing (shared across examples)
+class NotFoundError(TaggedError):
+    TAG = "NotFoundError"
+    __slots__ = ("id",)
+
+    def __init__(self, id: str) -> None:
+        super().__init__(f"Not found: {id}")
+        self.id = id
+
+
+class ValidationError(TaggedError):
+    TAG = "ValidationError"
+    __slots__ = ("field",)
+
+    def __init__(self, field: str) -> None:
+        super().__init__(f"Invalid: {field}")
+        self.field = field
+
+
+AppError: TypeAlias = Union[NotFoundError, ValidationError]
 
 
 class TestQuickStart:
@@ -111,30 +134,50 @@ class TestHandlingErrors:
 
     class TestRecovery:
         def test_recovers_from_specific_errors(self) -> None:
-            class NotFoundError(TaggedError):
-                TAG = "NotFoundError"
-                __slots__ = ("id",)
-
-                def __init__(self, id: str) -> None:
-                    super().__init__(f"Not found: {id}")
-                    self.id = id
-
-            def fetch_user(id: str) -> Result[dict[str, str], NotFoundError]:
+            def fetch_user(id: str) -> Result[dict[str, str], AppError]:
                 if id == "valid":
                     return Result.ok({"name": "John", "id": id})
+                if not id:
+                    return Result.err(ValidationError("id"))
                 return Result.err(NotFoundError(id))
 
+            default_user = {"name": "Default User"}
+
+            # Recover from NotFoundError, pass through other errors
             result = fetch_user("123").match(
                 {
-                    "ok": fn[dict[str, str], Result[dict[str, str], NotFoundError]](
+                    "ok": fn[dict[str, str], Result[dict[str, str], AppError]](
                         lambda user: Result.ok(user)
                     ),
-                    "err": fn[NotFoundError, Result[dict[str, str], NotFoundError]](
-                        lambda e: Result.ok({"name": "Default User"})
+                    "err": fn[AppError, Result[dict[str, str], AppError]](
+                        lambda e: (
+                            Result.ok(default_user)
+                            if e.tag == "NotFoundError"
+                            else Result.err(e)
+                        )
                     ),
                 }
             )
             assert result.is_ok()
+            assert result.unwrap() == default_user
+
+            # Test that ValidationError passes through
+            result_validation = fetch_user("").match(
+                {
+                    "ok": fn[dict[str, str], Result[dict[str, str], AppError]](
+                        lambda user: Result.ok(user)
+                    ),
+                    "err": fn[AppError, Result[dict[str, str], AppError]](
+                        lambda e: (
+                            Result.ok(default_user)
+                            if e.tag == "NotFoundError"
+                            else Result.err(e)
+                        )
+                    ),
+                }
+            )
+            assert result_validation.is_err()
+            assert isinstance(result_validation.unwrap_err(), ValidationError)
 
 
 class TestExtractingValues:
@@ -235,22 +278,6 @@ class TestUnhandledException:
 
 class TestTaggedErrors:
     def test_exhaustive_matching(self) -> None:
-        class NotFoundError(TaggedError):
-            TAG = "NotFoundError"
-            __slots__ = ("id",)
-
-            def __init__(self, id: str) -> None:
-                super().__init__(f"Not found: {id}")
-                self.id = id
-
-        class ValidationError(TaggedError):
-            TAG = "ValidationError"
-            __slots__ = ("field",)
-
-            def __init__(self, field: str) -> None:
-                super().__init__(f"Invalid: {field}")
-                self.field = field
-
         result_err = Result.err(ValidationError("name"))
 
         result_exhaustive = TaggedError.match(
@@ -267,22 +294,6 @@ class TestTaggedErrors:
         assert result_exhaustive.is_ok()
 
     def test_partial_matching_with_fallback(self) -> None:
-        class NotFoundError(TaggedError):
-            TAG = "NotFoundError"
-            __slots__ = ("id",)
-
-            def __init__(self, id: str) -> None:
-                super().__init__(f"Not found: {id}")
-                self.id = id
-
-        class ValidationError(TaggedError):
-            TAG = "ValidationError"
-            __slots__ = ("field",)
-
-            def __init__(self, field: str) -> None:
-                super().__init__(f"Invalid: {field}")
-                self.field = field
-
         result_err = Result.err(ValidationError("name"))
 
         result_partial = TaggedError.match_partial(
