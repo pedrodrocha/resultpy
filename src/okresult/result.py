@@ -453,6 +453,59 @@ class Result(Generic[A, E], ABC):
         except Exception as e:
             return Result.err(cast(U, e))
 
+    @overload
+    @staticmethod
+    def flatten[FLAT_A, FLAT_E](
+        result: "Result[Result[FLAT_A, FLAT_E], FLAT_E]",
+    ) -> "Result[FLAT_A, FLAT_E]": ...
+
+    @overload
+    @staticmethod
+    def flatten[FLAT_A, FLAT_E](
+        result: "Result[FLAT_A, FLAT_E]",
+    ) -> "Result[FLAT_A, FLAT_E]": ...
+
+    @staticmethod
+    def flatten[FLAT_A, FLAT_E](
+        result: "Result[Result[FLAT_A, FLAT_E] | FLAT_A, FLAT_E]",
+    ) -> "Result[FLAT_A, FLAT_E]":
+        """Flattens a nested Result.
+
+        If the result contains another Result, it flattens it.
+        If the result is not nested, it returns the result unchanged (identity).
+
+        Args:
+            result: Result that may contain a nested Result or a plain value.
+
+        Returns:
+            Flattened Result or original Result if already flat.
+
+        Example:
+            >>> Result.flatten(Result.ok(Result.ok(42)))
+            Ok(42)
+            >>> Result.flatten(Result.ok(42))
+            Ok(42)
+        """
+        if result.is_err():
+            return cast("Result[FLAT_A, FLAT_E]", result)
+
+        unwrapped = result.unwrap()
+        if Result.is_result(unwrapped):
+            return cast("Result[FLAT_A, FLAT_E]", unwrapped)
+        return cast("Result[FLAT_A, FLAT_E]", result)
+
+    @staticmethod
+    def is_result(value: object) -> bool:
+        """Checks if a value is a Result.
+
+        Args:
+            value: Value to check.
+
+        Returns:
+            True if value is a Result, False otherwise.
+        """
+        return isinstance(value, Result)
+
 
 """
 Type alias for generator-based Result composition.

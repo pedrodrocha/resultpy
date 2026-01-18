@@ -1438,3 +1438,75 @@ class TestResult:
             with pytest.raises(Panic) as exc_info:
                 await Result.gen_async(compute)
             assert "must yield the final Result" in str(exc_info.value)
+
+    class TestFlatten:
+        def test_flattens_ok_nested_at_outer_ok(self) -> None:
+            """
+            Ok(Ok(value)) -> Ok(value)
+            """
+            nested = Result.ok(Result.ok(42))
+            flat: Result[int, Never] = Result.flatten(nested)
+
+            assert flat.is_ok()
+            assert flat.unwrap() == 42
+
+        def test_flattens_err_nested_at_outer_ok(self) -> None:
+            """
+            Ok(Err(value)) -> Err(value)
+            """
+            nested = Result.ok(Result.err("error"))
+            flat: Result[Never, str] = Result.flatten(nested)
+
+            assert flat.is_err()
+            assert flat.unwrap_err() == "error"
+
+        def test_flattens_ok_identity_to_self(self) -> None:
+            """
+            Ok(value) => Ok(value)
+            """
+            nested = Result.ok(42)
+            flat: Result[int, Never] = Result.flatten(nested)
+
+            assert flat.is_ok()
+            assert flat.unwrap() == 42
+
+        def test_flattens_err_identity_to_self(self) -> None:
+            """
+            Err(value) => Err(value)
+            """
+            nested = Result.err("error")
+            flat: Result[Never, str] = Result.flatten(nested)
+
+            assert flat.is_err()
+            assert flat.unwrap_err() == "error"
+
+        def test_flatten_with_different_error_types(self) -> None:
+            """
+            Tests that flatten works correctly with different error types
+            and that the type system accepts union error types.
+
+            Ok(Ok(value)) -> Ok(value)
+            Ok(Err(value)) -> Err(value)
+            Err(value) -> Err(value)
+            """
+
+            class InnerError(TaggedError):
+                TAG: str = "InnerError"
+
+            class OuterError(TaggedError):
+                TAG: str = "OuterError"
+
+            ok_ok = Result.ok(Result.ok(42))
+            ok_err = Result.ok(Result.err(InnerError("inner failed")))
+            err_outer = Result.err(OuterError("outer failed"))
+
+            flat1: Result[int, InnerError | OuterError] = Result.flatten(ok_ok)
+            flat2: Result[int, InnerError | OuterError] = Result.flatten(ok_err)
+            flat3: Result[int, InnerError | OuterError] = Result.flatten(err_outer)
+
+            assert flat1.is_ok()
+            assert flat2.is_err()
+            assert flat3.is_err()
+
+            assert flat2.unwrap_err().tag == "InnerError"
+            assert flat3.unwrap_err().tag == "OuterError"
