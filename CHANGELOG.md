@@ -1,6 +1,6 @@
 # Change Log
 
-## [ v0.3.0 ] - yyy-mm-dd
+## [ v0.3.0 ] - 2026-01-19
 
 ### Added
 

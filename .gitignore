@@ -59,3 +59,4 @@ uv.lock
 # Extras
 .markdownlint-cli2.yaml
 .notes/
+.test-venv/
