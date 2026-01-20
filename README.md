@@ -359,9 +359,43 @@ result = await safe_async(
             "times": 3,
             "delay_ms": 100,
             "backoff": "exponential",  # or "linear" | "constant"
-        }
-    }
+            # Optional: only retry for certain error types/flags
+            "should_retry": lambda e: isinstance(e, ConnectionError),
+        },
+    },
 )
+
+# With custom error mapping and richer predicates
+from typing import TypedDict
+
+class ApiError(TypedDict):
+    retryable: bool
+    msg: str
+
+async def call_api(url: str) -> str:
+    raise RuntimeError("rate limited")
+
+result = await safe_async(
+    {
+        "try_": lambda: call_api("https://api.example.com"),
+        "catch": fn[Exception, ApiError](
+            lambda e: ApiError(retryable="rate limited" not in str(e), msg=str(e))
+        ),
+    },
+    {
+        "retry": {
+            "times": 3,
+            "delay_ms": 100,
+            "backoff": "exponential",
+            # Only retry when the enriched error is marked as retryable
+            "should_retry": lambda e: e["retryable"],
+        },
+    },
+)
+
+# Note: should_retry must be synchronous. For async decisions (e.g. feature flags,
+# rate limits in Redis), fetch that state inside the catch handler and encode it
+# into the error object that should_retry receives.
 ```
 
 ## UnhandledException

@@ -2,7 +2,7 @@ from typing import TypeVar, Callable, Awaitable, Literal, Generic, overload
 from typing_extensions import TypedDict
 import asyncio
 
-from .result import Result, Ok, Err
+from .result import Result, Ok, Err, try_or_panic
 from .error import UnhandledException, panic
 
 A = TypeVar("A")
@@ -14,9 +14,12 @@ class RetryConfig(TypedDict, total=False):
 
     Attributes:
         times: Number of retry attempts.
+        should_retry: Predicate to decide if an error should trigger a retry.
+            Defaults to always retry.
     """
 
     times: int
+    should_retry: Callable[[object], bool]
 
 
 class RetryConfigAsync(TypedDict, total=False):
@@ -26,11 +29,14 @@ class RetryConfigAsync(TypedDict, total=False):
         times: Number of retry attempts.
         delay_ms: Delay in milliseconds between retries.
         backoff: Backoff strategy (constant, linear, or exponential).
+        should_retry: Predicate to decide if an error should trigger a retry.
+            Defaults to always retry.
     """
 
     times: int
     delay_ms: int
     backoff: Literal["constant", "linear", "exponential"]
+    should_retry: Callable[[object], bool]
 
 
 class SafeConfig(TypedDict, total=False):
@@ -118,13 +124,25 @@ def safe(
                 except Exception as catch_handler_error:
                     panic("Result.safe catch handler threw", catch_handler_error)
 
-    retry_config = (config or {}).get("retry", {})
+    retry_config = (config or {}).get("retry")
     times = retry_config.get("times", 0) if retry_config else 0
+
+    def _always_retry(_: object) -> bool:
+        return True
+
+    should_retry_fn = retry_config.get("should_retry") if retry_config else None
+    should_retry: Callable[[object], bool] = should_retry_fn or _always_retry
 
     result = execute()
 
     for _ in range(times):
         if result.is_ok():
+            break
+        error = result.unwrap_err()
+        should_continue = try_or_panic(
+            lambda: should_retry(error), "should_retry predicate threw"
+        )
+        if not should_continue:
             break
         result = execute()
 
@@ -188,10 +206,7 @@ async def safe_async(
                 except Exception as catch_handler_error:
                     panic("Result.safe_async catch handler threw", catch_handler_error)
 
-    def get_delay(attempt: int) -> float:
-        if not config:
-            return 0
-        retry_config = config.get("retry")
+    def get_delay(attempt: int, retry_config: RetryConfigAsync | None) -> float:
         if not retry_config:
             return 0
         delay_ms = retry_config.get("delay_ms", 0)
@@ -203,15 +218,27 @@ async def safe_async(
         else:  # exponential
             return (delay_ms * (2**attempt)) / 1000
 
-    retry_config = (config or {}).get("retry", {})
+    retry_config = (config or {}).get("retry")
     times = retry_config.get("times", 0) if retry_config else 0
+
+    def _always_retry(_: object) -> bool:
+        return True
+
+    should_retry_fn = retry_config.get("should_retry") if retry_config else None
+    should_retry: Callable[[object], bool] = should_retry_fn or _always_retry
 
     result = await execute()
 
     for attempt in range(times):
         if result.is_ok():
             break
-        delay = get_delay(attempt)
+        error = result.unwrap_err()
+        should_continue = try_or_panic(
+            lambda: should_retry(error), "should_retry predicate threw"
+        )
+        if not should_continue:
+            break
+        delay = get_delay(attempt, retry_config)
         if delay > 0:
             await asyncio.sleep(delay)
         result = await execute()

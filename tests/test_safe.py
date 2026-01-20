@@ -144,6 +144,66 @@ class TestSafe:
             assert result.is_ok()
             assert attempts == 1
 
+        def test_respects_should_retry_predicate(self) -> None:
+            attempts = 0
+
+            class Error:
+                def __init__(self, retryable: bool, msg: str) -> None:
+                    self.retryable = retryable
+                    self.msg = msg
+
+            def flaky() -> int:
+                nonlocal attempts
+                attempts += 1
+                raise ValueError("retryable" if attempts == 1 else "fatal")
+
+            result = safe(
+                {
+                    "try_": flaky,
+                    "catch": fn[Exception, Error](
+                        lambda e: Error(
+                            retryable=str(e) == "retryable", msg=str(e)  # type: ignore[arg-type]
+                        )
+                    ),
+                },
+                {"retry": {"times": 3, "should_retry": lambda e: e.retryable}},
+            )
+
+            assert attempts == 2
+            assert result.is_err()
+            err = result.unwrap_err()
+            assert isinstance(err, Error)
+            assert err.msg == "fatal"
+
+        def test_retries_all_errors_when_should_retry_not_provided(self) -> None:
+            attempts = 0
+
+            def always_fails() -> int:
+                nonlocal attempts
+                attempts += 1
+                raise ValueError("always fail")
+
+            result = safe(
+                {
+                    "try_": always_fails,
+                    "catch": fn[Exception, str](lambda e: str(e)),
+                },
+                {"retry": {"times": 3}},
+            )
+
+            assert attempts == 4  # 1 initial + 3 retries
+            assert result.is_err()
+
+        def test_raises_panic_when_should_retry_throws(self) -> None:
+            def always_fails() -> int:
+                raise ValueError("fail")
+
+            def predicate(_: object) -> bool:
+                raise RuntimeError("predicate bug")
+
+            with pytest.raises(Panic):
+                safe(always_fails, {"retry": {"times": 3, "should_retry": predicate}})
+
 
 class TestSafeAsync:
     class TestSimpleThunk:
@@ -311,3 +371,69 @@ class TestSafeAsync:
                 delay1 = timestamps[1] - timestamps[0]
                 delay2 = timestamps[2] - timestamps[1]
                 assert delay2 > delay1
+
+        @pytest.mark.asyncio
+        async def test_respects_should_retry_predicate(self) -> None:
+            attempts = 0
+
+            class Error:
+                def __init__(self, retryable: bool, msg: str) -> None:
+                    self.retryable = retryable
+                    self.msg = msg
+
+            async def flaky() -> int:
+                nonlocal attempts
+                attempts += 1
+                raise ValueError("retryable" if attempts == 1 else "fatal")
+
+            result = await safe_async(
+                {
+                    "try_": flaky,
+                    "catch": fn[Exception, Error](
+                        lambda e: Error(
+                            retryable=str(e) == "retryable", msg=str(e)  # type: ignore[arg-type]
+                        )
+                    ),
+                },
+                {"retry": {"times": 3, "should_retry": lambda e: e.retryable}},
+            )
+
+            assert attempts == 2
+            assert result.is_err()
+            err = result.unwrap_err()
+            assert isinstance(err, Error)
+            assert err.msg == "fatal"
+
+        @pytest.mark.asyncio
+        async def test_retries_all_errors_when_should_retry_not_provided(self) -> None:
+            attempts = 0
+
+            async def always_fails() -> int:
+                nonlocal attempts
+                attempts += 1
+                raise ValueError("always fail")
+
+            result = await safe_async(
+                {
+                    "try_": always_fails,
+                    "catch": fn[Exception, str](lambda e: str(e)),
+                },
+                {"retry": {"times": 3}},
+            )
+
+            assert attempts == 4  # 1 initial + 3 retries
+            assert result.is_err()
+
+        @pytest.mark.asyncio
+        async def test_raises_panic_when_should_retry_throws(self) -> None:
+            async def always_fails() -> int:
+                raise ValueError("fail")
+
+            def predicate(_: object) -> bool:
+                raise RuntimeError("predicate bug")
+
+            with pytest.raises(Panic):
+                await safe_async(
+                    always_fails,
+                    {"retry": {"times": 3, "should_retry": predicate}},
+                )

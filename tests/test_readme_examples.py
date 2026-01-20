@@ -3,6 +3,7 @@ from okresult import (
     Ok,
     Err,
     safe,
+    safe_async,
     fn,
     map as result_map,
     unwrap,
@@ -14,7 +15,7 @@ from okresult import (
 import json
 import asyncio
 import pytest
-from typing import Union, TypeAlias
+from typing import Union, TypeAlias, TypedDict
 
 
 # Error types for testing (shared across examples)
@@ -274,6 +275,67 @@ class TestUnhandledException:
             }
         )
         assert result.is_ok()
+
+
+class TestRetrySupport:
+    @pytest.mark.asyncio
+    async def test_basic_retry_example(self) -> None:
+        async def fetch(url: str) -> str:
+            raise ConnectionError(f"Network error for {url}")
+
+        result = await safe_async(
+            lambda: fetch("https://api.example.com"),
+            {
+                "retry": {
+                    "times": 3,
+                    "delay_ms": 10,
+                    "backoff": "exponential",  # or "linear" | "constant"
+                    # In this simple example, we just always retry errors
+                    "should_retry": lambda _e: True,
+                }
+            },
+        )
+
+        # Still an error (we always fail), but the example should be runnable
+        assert result.is_err()
+
+    @pytest.mark.asyncio
+    async def test_retry_with_custom_error_mapping(self) -> None:
+        class ApiError(TypedDict):
+            retryable: bool
+            msg: str
+
+        async def call_api(url: str) -> str:
+            raise RuntimeError("rate limited")
+
+        result = await safe_async(
+            {
+                "try_": lambda: call_api("https://api.example.com"),
+                "catch": fn[Exception, ApiError](
+                    lambda e: ApiError(
+                        retryable="rate limited" not in str(e),
+                        msg=str(e),
+                    )
+                ),
+            },
+            {
+                "retry": {
+                    "times": 3,
+                    "delay_ms": 10,
+                    "backoff": "exponential",
+                    # Only retry when the enriched error is marked as retryable
+                    "should_retry": lambda e: e["retryable"],
+                },
+            },
+        )
+
+        # We always raise a rate-limited error, so retryable is False,
+        # so there should be no retries and we end with a non-retryable error.
+        assert result.is_err()
+        err = result.unwrap_err()
+        assert isinstance(err, dict)
+        assert err["msg"] == "rate limited"
+        assert err["retryable"] is False
 
 
 class TestTaggedErrors:
