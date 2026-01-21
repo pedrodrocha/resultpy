@@ -11,8 +11,6 @@ from okresult import (
     Panic,
     Do,
     DoAsync,
-    retry_config_async,
-    UnhandledException,
 )
 import json
 import asyncio
@@ -283,17 +281,17 @@ class TestRetrySupport:
     @pytest.mark.asyncio
     async def test_basic_retry_example(self) -> None:
         async def fetch(url: str) -> str:
-            raise ConnectionError(f"Network error for {url}")
+            raise ConnectionError("Network error")
 
         result = await safe_async(
             lambda: fetch("https://api.example.com"),
             {
                 "retry": {
                     "times": 3,
-                    "delay_ms": 10,
+                    "delay_ms": 100,
                     "backoff": "exponential",  # or "linear" | "constant"
-                    # In this simple example, we just always retry errors
-                    "should_retry": fn[UnhandledException, bool](lambda _e: True),
+                    # Only retry certain error types/flags
+                    "should_retry": lambda e: isinstance(e, ConnectionError),
                 }
             },
         )
@@ -310,13 +308,6 @@ class TestRetrySupport:
         async def call_api(url: str) -> str:
             raise RuntimeError("rate limited")
 
-        config = retry_config_async(
-            times=3,
-            delay_ms=10,
-            backoff="exponential",
-            should_retry=fn[ApiError, bool](lambda e: e["retryable"]),
-        )
-
         result = await safe_async(
             {
                 "try_": lambda: call_api("https://api.example.com"),
@@ -327,7 +318,14 @@ class TestRetrySupport:
                     )
                 ),
             },
-            config,
+            {
+                "retry": {
+                    "times": 3,
+                    "delay_ms": 100,
+                    "backoff": "exponential",
+                    "should_retry": lambda e: e["retryable"],
+                },
+            },
         )
 
         # We always raise a rate-limited error, so retryable is False,
