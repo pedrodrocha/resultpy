@@ -366,11 +366,26 @@ result = await safe_async(
 )
 
 # With custom error mapping and richer predicates
-from typing import TypedDict
+from okresult import TaggedError
+from typing import Union
 
-class ApiError(TypedDict):
-    retryable: bool
-    msg: str
+class RetryableException(TaggedError):
+    TAG = "RetryableException"
+    __slots__ = ("msg",)
+    
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
+        self.msg = msg
+
+class NonRetryableException(TaggedError):
+    TAG = "NonRetryableException"
+    __slots__ = ("msg",)
+    
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
+        self.msg = msg
+
+ApiError = Union[RetryableException, NonRetryableException]
 
 async def call_api(url: str) -> str:
     raise RuntimeError("rate limited")
@@ -379,7 +394,7 @@ result = await safe_async(
     {
         "try_": lambda: call_api("https://api.example.com"),
         "catch": fn[Exception, ApiError](
-            lambda e: ApiError(retryable="rate limited" not in str(e), msg=str(e))
+            lambda e: RetryableException(str(e)) if "rate limited" in str(e) else NonRetryableException(str(e))
         ),
     },
     {
@@ -387,7 +402,7 @@ result = await safe_async(
             "times": 3,
             "delay_ms": 100,
             "backoff": "exponential",
-            "should_retry": lambda e: e["retryable"],
+            "should_retry": lambda e: e.tag == "RetryableException",
         },
     },
 )
