@@ -27,6 +27,8 @@ from .safe import (
     SafeOptions,
     RetryConfig,
     RetryConfigAsync,
+    retry_config,
+    retry_config_async,
 )
 
 from .error import TaggedError, UnhandledException, is_panic, panic, Panic
@@ -61,6 +63,8 @@ __all__ = [
     "SafeOptions",
     "RetryConfig",
     "RetryConfigAsync",
+    "retry_config",
+    "retry_config_async",
     # Error types
     "TaggedError",
     "UnhandledException",

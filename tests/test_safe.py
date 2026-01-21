@@ -161,12 +161,15 @@ class TestSafe:
                 {
                     "try_": flaky,
                     "catch": fn[Exception, Error](
-                        lambda e: Error(
-                            retryable=str(e) == "retryable", msg=str(e)  # type: ignore[arg-type]
-                        )
+                        lambda e: Error(retryable=str(e) == "retryable", msg=str(e))
                     ),
                 },
-                {"retry": {"times": 3, "should_retry": lambda e: e.retryable}},
+                {
+                    "retry": {
+                        "times": 3,
+                        "should_retry": fn["Error", bool](lambda e: e.retryable),
+                    }
+                },
             )
 
             assert attempts == 2
@@ -390,12 +393,15 @@ class TestSafeAsync:
                 {
                     "try_": flaky,
                     "catch": fn[Exception, Error](
-                        lambda e: Error(
-                            retryable=str(e) == "retryable", msg=str(e)  # type: ignore[arg-type]
-                        )
+                        lambda e: Error(retryable=str(e) == "retryable", msg=str(e))
                     ),
                 },
-                {"retry": {"times": 3, "should_retry": lambda e: e.retryable}},
+                {
+                    "retry": {
+                        "times": 3,
+                        "should_retry": fn[Error, bool](lambda e: e.retryable),
+                    }
+                },
             )
 
             assert attempts == 2

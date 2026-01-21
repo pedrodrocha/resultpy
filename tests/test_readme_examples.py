@@ -11,6 +11,8 @@ from okresult import (
     Panic,
     Do,
     DoAsync,
+    retry_config_async,
+    UnhandledException,
 )
 import json
 import asyncio
@@ -291,7 +293,7 @@ class TestRetrySupport:
                     "delay_ms": 10,
                     "backoff": "exponential",  # or "linear" | "constant"
                     # In this simple example, we just always retry errors
-                    "should_retry": lambda _e: True,
+                    "should_retry": fn[UnhandledException, bool](lambda _e: True),
                 }
             },
         )
@@ -308,6 +310,13 @@ class TestRetrySupport:
         async def call_api(url: str) -> str:
             raise RuntimeError("rate limited")
 
+        config = retry_config_async(
+            times=3,
+            delay_ms=10,
+            backoff="exponential",
+            should_retry=fn[ApiError, bool](lambda e: e["retryable"]),
+        )
+
         result = await safe_async(
             {
                 "try_": lambda: call_api("https://api.example.com"),
@@ -318,15 +327,7 @@ class TestRetrySupport:
                     )
                 ),
             },
-            {
-                "retry": {
-                    "times": 3,
-                    "delay_ms": 10,
-                    "backoff": "exponential",
-                    # Only retry when the enriched error is marked as retryable
-                    "should_retry": lambda e: e["retryable"],
-                },
-            },
+            config,
         )
 
         # We always raise a rate-limited error, so retryable is False,

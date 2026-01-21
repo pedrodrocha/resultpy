@@ -4,8 +4,7 @@
 
 ### Added
 
-- Optional `should_retry` predicate in `RetryConfig` / `RetryConfigAsync` for `safe()` and `safe_async()`
-  to control which errors trigger retries.
+- Added optional `should_retry` predicate in `RetryConfig` / `RetryConfigAsync` for `safe()` and `safe_async()`.
 
 ### Changed
 

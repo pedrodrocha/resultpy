@@ -1,4 +1,13 @@
-from typing import TypeVar, Callable, Awaitable, Literal, Generic, overload
+from typing import (
+    TypeVar,
+    Callable,
+    Awaitable,
+    Literal,
+    Generic,
+    overload,
+    TypeAlias,
+    cast,
+)
 from typing_extensions import TypedDict
 import asyncio
 
@@ -7,9 +16,15 @@ from .error import UnhandledException, panic
 
 A = TypeVar("A")
 E = TypeVar("E")
+ErrT = TypeVar("ErrT", default=UnhandledException)
+
+# Alias for the retry predicate. Callers supply a single-arg predicate for their
+# concrete error type (e.g., Callable[[MyError], bool]); helpers like
+# retry_config(_async) infer that type from the predicate.
+ShouldRetryCallable: TypeAlias = Callable[[ErrT], bool]
 
 
-class RetryConfig(TypedDict, total=False):
+class RetryConfig(TypedDict, Generic[ErrT], total=False):
     """Configuration for retry behavior in safe.
 
     Attributes:
@@ -19,10 +34,10 @@ class RetryConfig(TypedDict, total=False):
     """
 
     times: int
-    should_retry: Callable[[object], bool]
+    should_retry: ShouldRetryCallable[ErrT]
 
 
-class RetryConfigAsync(TypedDict, total=False):
+class RetryConfigAsync(TypedDict, Generic[ErrT], total=False):
     """Configuration for retry behavior in safe_async.
 
     Attributes:
@@ -36,27 +51,65 @@ class RetryConfigAsync(TypedDict, total=False):
     times: int
     delay_ms: int
     backoff: Literal["constant", "linear", "exponential"]
-    should_retry: Callable[[object], bool]
+    should_retry: ShouldRetryCallable[ErrT]
 
 
-class SafeConfig(TypedDict, total=False):
+class SafeConfig(TypedDict, Generic[ErrT], total=False):
     """Configuration for safe execution.
 
     Attributes:
         retry: Retry configuration.
     """
 
-    retry: RetryConfig
+    retry: RetryConfig[ErrT]
 
 
-class SafeConfigAsync(TypedDict, total=False):
+class SafeConfigAsync(TypedDict, Generic[ErrT], total=False):
     """Configuration for safe async execution.
 
     Attributes:
         retry: Retry configuration.
     """
 
-    retry: RetryConfigAsync
+    retry: RetryConfigAsync[ErrT]
+
+
+def retry_config(
+    *, times: int, should_retry: ShouldRetryCallable[E] | None = None
+) -> SafeConfig[E]:
+    """Helper to build a typed retry config for safe.
+
+    The type of ``should_retry`` drives the error type ``E`` so callers can
+    avoid annotating the whole config explicitly.
+    """
+
+    cfg: RetryConfig[E] = {"times": times}
+    if should_retry is not None:
+        cfg["should_retry"] = should_retry
+    return {"retry": cfg}
+
+
+def retry_config_async(
+    *,
+    times: int,
+    delay_ms: int = 0,
+    backoff: Literal["constant", "linear", "exponential"] = "constant",
+    should_retry: ShouldRetryCallable[E] | None = None,
+) -> SafeConfigAsync[E]:
+    """Helper to build a typed retry config for safe_async.
+
+    The type of ``should_retry`` drives the error type ``E`` so callers can
+    avoid annotating the whole config explicitly.
+    """
+
+    cfg: RetryConfigAsync[E] = {
+        "times": times,
+        "delay_ms": delay_ms,
+        "backoff": backoff,
+    }
+    if should_retry is not None:
+        cfg["should_retry"] = should_retry
+    return {"retry": cfg}
 
 
 class SafeOptions(TypedDict, Generic[A, E]):
@@ -74,21 +127,21 @@ class SafeOptions(TypedDict, Generic[A, E]):
 @overload
 def safe(
     thunk: Callable[[], A],
-    config: SafeConfig | None = None,
+    config: SafeConfig[UnhandledException] | None = None,
 ) -> Result[A, UnhandledException]: ...
 
 
 @overload
 def safe(
     thunk: SafeOptions[A, E],
-    config: SafeConfig | None = None,
+    config: SafeConfig[E] | None = None,
 ) -> Result[A, E]: ...
 
 
 def safe(
     thunk: Callable[[], A] | SafeOptions[A, E],
-    config: SafeConfig | None = None,
-) -> Result[A, E] | Result[A, UnhandledException]:
+    config: SafeConfig[E] | None = None,
+) -> Result[A, E | UnhandledException]:
     """Executes function safely, wrapping result/error in Result.
 
     Args:
@@ -108,7 +161,7 @@ def safe(
         Err("error")
     """
 
-    def execute() -> Result[A, E] | Result[A, UnhandledException]:
+    def execute() -> Result[A, E | UnhandledException]:
         if callable(thunk):
             try:
                 return Ok(thunk())
@@ -124,14 +177,22 @@ def safe(
                 except Exception as catch_handler_error:
                     panic("Result.safe catch handler threw", catch_handler_error)
 
-    retry_config = (config or {}).get("retry")
-    times = retry_config.get("times", 0) if retry_config else 0
+    retry_config: RetryConfig[E] | None = (
+        config["retry"] if config is not None and "retry" in config else None
+    )
+    times: int = (
+        retry_config["times"] if retry_config and "times" in retry_config else 0
+    )
 
-    def _always_retry(_: object) -> bool:
+    def _always_retry(_: E) -> bool:
         return True
 
-    should_retry_fn = retry_config.get("should_retry") if retry_config else None
-    should_retry: Callable[[object], bool] = should_retry_fn or _always_retry
+    should_retry_fn: ShouldRetryCallable[E] | None = (
+        retry_config["should_retry"]
+        if retry_config and "should_retry" in retry_config
+        else None
+    )
+    should_retry: ShouldRetryCallable[E] = should_retry_fn or _always_retry
 
     result = execute()
 
@@ -140,7 +201,7 @@ def safe(
             break
         error = result.unwrap_err()
         should_continue = try_or_panic(
-            lambda: should_retry(error), "should_retry predicate threw"
+            lambda: should_retry(cast(E, error)), "should_retry predicate threw"
         )
         if not should_continue:
             break
@@ -152,21 +213,21 @@ def safe(
 @overload
 async def safe_async(
     thunk: Callable[[], Awaitable[A]],
-    config: SafeConfigAsync | None = None,
+    config: SafeConfigAsync[UnhandledException] | None = None,
 ) -> Result[A, UnhandledException]: ...
 
 
 @overload
 async def safe_async(
     thunk: SafeOptions[Awaitable[A], E],
-    config: SafeConfigAsync | None = None,
+    config: SafeConfigAsync[E] | None = None,
 ) -> Result[A, E]: ...
 
 
 async def safe_async(
     thunk: Callable[[], Awaitable[A]] | SafeOptions[Awaitable[A], E],
-    config: SafeConfigAsync | None = None,
-) -> Result[A, E] | Result[A, UnhandledException]:
+    config: SafeConfigAsync[E] | None = None,
+) -> Result[A, E | UnhandledException]:
     """Executes async function safely, wrapping result/error in Result.
 
     Supports retry with configurable delay and backoff.
@@ -190,7 +251,7 @@ async def safe_async(
         ... )
     """
 
-    async def execute() -> Result[A, E] | Result[A, UnhandledException]:
+    async def execute() -> Result[A, E | UnhandledException]:
         if callable(thunk):
             try:
                 return Ok(await thunk())
@@ -206,7 +267,7 @@ async def safe_async(
                 except Exception as catch_handler_error:
                     panic("Result.safe_async catch handler threw", catch_handler_error)
 
-    def get_delay(attempt: int, retry_config: RetryConfigAsync | None) -> float:
+    def get_delay(attempt: int, retry_config: RetryConfigAsync[E] | None) -> float:
         if not retry_config:
             return 0
         delay_ms = retry_config.get("delay_ms", 0)
@@ -218,14 +279,22 @@ async def safe_async(
         else:  # exponential
             return (delay_ms * (2**attempt)) / 1000
 
-    retry_config = (config or {}).get("retry")
-    times = retry_config.get("times", 0) if retry_config else 0
+    retry_config: RetryConfigAsync[E] | None = (
+        config["retry"] if config is not None and "retry" in config else None
+    )
+    times: int = (
+        retry_config["times"] if retry_config and "times" in retry_config else 0
+    )
 
-    def _always_retry(_: object) -> bool:
+    def _always_retry(_: E) -> bool:
         return True
 
-    should_retry_fn = retry_config.get("should_retry") if retry_config else None
-    should_retry: Callable[[object], bool] = should_retry_fn or _always_retry
+    should_retry_fn: ShouldRetryCallable[E] | None = (
+        retry_config["should_retry"]
+        if retry_config and "should_retry" in retry_config
+        else None
+    )
+    should_retry: ShouldRetryCallable[E] = should_retry_fn or _always_retry
 
     result = await execute()
 
@@ -234,7 +303,7 @@ async def safe_async(
             break
         error = result.unwrap_err()
         should_continue = try_or_panic(
-            lambda: should_retry(error), "should_retry predicate threw"
+            lambda: should_retry(cast(E, error)), "should_retry predicate threw"
         )
         if not should_continue:
             break
